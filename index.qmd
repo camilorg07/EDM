@@ -1,0 +1,21 @@
+---
+title: "Análisis de las condiciones laborales de la población ocupada"
+author: 
+- "Camilo Alejandro Raba"
+- "Juan Andrés Camacho"
+date: "2024-09-25"
+format:
+  html:
+    toc: True
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Ver código"
+    link-external-newwindow: true
+    css: styles.css
+editor_options:
+  chunk_output_type: console
+---
+
+# Acerca de
+
+Este proyecto fue realizado para la materia de estadística descriptiva multivariada.

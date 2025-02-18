@@ -1,0 +1,1511 @@
+---
+title: "ACM"
+format:
+  html:
+    toc: True
+    toc-title: "Tabla de contenidos"
+    toc-depth: 3  # Profundidad de los encabezados a enumerar
+    number-sections: true  # Activa la numeración de secciones
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Ver código"
+    link-external-newwindow: true
+    css: styles.css
+editor_options:
+  chunk_output_type: console
+---
+
+Se dividieron las variables categóricas en grupos para realizar el ACM con el fin de encontrar patrones y descubrir asociaciones muy específicas que nos sirvan para identificar potenciales desigualdades en el acceso a beneficios y prestaciones laborales, considerando las características sociodemográficas y del trabajo actual de los individuos.
+
+Los grupos en que dividimos a las variables cualitativas, son:
+
+1.  Características sociodemográficas: REGION, SEXO, EDAD, MNEA. (4)
+
+2.  Características del trabajo actual: EETE, PTET, DRPST, HTYRSC. (4)
+
+3.  Características de condiciones laborales y seguridad social: ECFP, EAARP, EACC, CCCM. (4)
+
+4.  Otras características: TOT, QTMH, DCSTA, ESCTA, ESCBR, ESCJL, EAAGS, CSTAE, DORGYH. (9)
+
+Se opto por hacer tres análisis de correspondencias múltiples (ACM), tomando en cada uno de ellos a uno de los tres primeros grupos como variables activas y los tres grupos restantes como variables suplementarias. El objetivo de estos 3 análisis es descubrir la asociación entre las variables que describen características generales del trabajo de los encuestados como lo son el lugar de trabajo, tamaño de la empresa (número de trabajadores), compatibilidad del horario laboral con las responsabilidades familiares y el tipo de empleo que ejerce (partícular, trabaja para el gobierno y otro) con las variables asociadas a características sociodemográficas como edad o nivel educativo y variables asociadas a características de las condiciones laborales como afiliación a una EPS o ARP.
+
+# ACM con variables de características sociodemográficas
+
+Las variables activas para este ACM son:
+
+1.  **SEXO:** Sexo al nacer.
+
+    Categorías:
+
+    -   \(M\) Masculino.
+
+    -   \(F\) Femenino
+
+2.  **Edad:**
+
+    Categorías:
+
+    -   (ME) Menor de edad.
+
+    -   (18A38) Adultos entre 18 y 38 años.
+
+    -   (39A59) Adultos entre 39 y 59 años.
+
+    -   (AM) Adulto mayor.
+
+3.  **Región:**
+
+    Categorías:
+
+    -   (ANDI) Región Andina.
+
+    -   (CARI) Región Caribe.
+
+    -   (PACI) Región del Pacífico.
+
+    -   (OTRA) Región de la Amazonía, región de la Orinoquía y región insular.
+
+4.  **MNEA:** Variable mayor nivel educativo alcanzado.
+
+    Categorías:
+
+    -   (MB) Menor que bachiller: agrupa los niveles “Ninguno”, “Básica primaria” y “Básica secundaria”.
+
+    -   \(B\) Bachiller: agrupa los niveles “Bachillerato clásico” y “Bachillerato técnico”.
+
+    -   (NPTT) Normalista, pregrado, técnico o tecnólogo: agrupa los niveles “Normalista”, “Universitaria”, “Técnica profesional” y “Tecnológica”.
+
+    -   \(P\) Posgrado: agrupa los niveles “Especialización”, “Maestría” y “Doctorado”.
+
+```{r, warning=FALSE, message=FALSE}
+library(readr)
+library(FactoClass)
+library(plotly)
+library(knitr)
+library(skimr)
+library(sqldf)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(DT)
+library(kableExtra)
+library(FactoMineR)
+library(factoextra)
+library(gridExtra)
+library(ggpubr)
+
+
+Ocupados<-read_delim("bfinal.txt", delim="@")
+
+Ocupados <- within(Ocupados, {
+  EDAD <- ifelse(EDAD <= 17, "ME",
+                 ifelse(EDAD <= 38, "18A38",
+                        ifelse(EDAD <= 59, "39A59",
+                               ifelse(EDAD >= 60, "AM", EDAD))))})
+cualis<-Ocupados[,-c(3,22:25,27:37)]
+ocupados=Ocupados
+Y1=ocupados[, c("SEXO","EDAD","REGION","MNEA")]
+Y1<-lapply(Y1,factor)
+Y1<-as.data.frame(Y1)
+
+par(las=1, mfrow =c(2,2),mai=c(0.7,0.6,0.1,0.2))
+
+for(i in c(1:4)){
+  cat <- attributes(Y1[,i])$levels
+  per <- prop.table(table(Y1[, i])) * 100
+  pl <- plot( Y1[,i], horiz=TRUE,
+              col=length(cat):1+1,
+              ylim=c(0,5), xlim=c(0,14000), 
+              xlab=strwrap(colnames(Y1)[i], width = 20))
+  text(0, pl, paste(round(per,1),"%"), cex=1, font=2, pos=4 ,offset=0.5)
+}
+
+
+ #Variables cualitativas 
+Y_Csup=cualis[,-c(1,2,20,21)]
+Y_Cusup=ocupados[,c(22:25,27:32)]
+Y=cbind(Y_Csup,Y_Cusup,Y1)
+
+
+
+acm <- MCA(Y, graph=FALSE, quali.sup = c(1:17), quanti.sup = c(18:27))
+
+
+
+
+df_acm <- data.frame(Variable = rownames(acm$var$eta2), 
+                     Eje1 = acm$var$eta2[,1],
+                     Eje2 = acm$var$eta2[,2],
+                     Eje3 = acm$var$eta2[,3],
+                     Eje4 = acm$var$eta2[,4],
+                     Eje5 = acm$var$eta2[,5])
+Ocupados<-Ocupados[,-c(3,33:37)]
+```
+
+## Resultados generales del análisis:
+
+-   **Histograma de la inercia:**
+
+```{r, warning=FALSE, message=FALSE}
+fviz_screeplot(acm, addlabels = TRUE, ylim = c(0, 30))
+```
+
+-   **Para la nueva inercia:**
+
+```{r, warning=FALSE, message=FALSE}
+s <- 4
+l <- acm$eig[acm$eig[,1] > 1/s, 1]
+tau <- ( s / (s - 1) )^2 * ( l - (1/s) )^2
+ptau <- tau / sum( tau ) * 100
+barplot(ptau, col="darkred", ylim = c(0,100))+text(ptau, labels = paste(round(ptau,3),"%"), pos=3)
+```
+
+### Valores test, contribución y calidad de representación de las variables con los ejes:
+
+-   **Eje 1:**
+
+```{r, warning=FALSE, message=FALSE}
+
+#
+
+#Eje 1:
+
+ggarrange(fviz_contrib(acm, choice = "var", axes = 1),fviz_cos2(acm, choice="var",axes=1), ncol=2, nrow=1)
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje1), y = Eje1)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje1, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+  labs(title="Correlaciones Eje 1",x="Variables",y="Correlacion")+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+Las categorías recogidas en "Menor que bachiller","Normalista, pregrado, técnico o tecnólogo", los adultos mayores y las personas entre 18 a 38 años son las que más contribuyen a este eje y las mejor representadas. Por otra parte, se destacan las correlaciones del nivel educativo y la edad con este eje.
+
+Este eje también contrapone a las personas con titulos de Normalista, pregrado, técnico o tecnólogo (-) con los que no tienen un titulo de bachiller(+), analogamente en el caso de las edades, contrapone a los adultos mayores (+) con las personas entre 18 a 38 años.
+
+-   **Eje 2:**
+
+```{r, warning=FALSE, message=FALSE}
+#Eje 2:
+
+ggarrange(fviz_contrib(acm, choice = "var", axes = 2),fviz_cos2(acm, choice="var",axes=2), ncol=2, nrow=1)
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje2), y = Eje2)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje2, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+  labs(title="Correlaciones Eje 2",x="Variables",y="Correlacion")+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+Las categorías recogidas en Posgrado, Bachiller, Mujeres, Hombres y las personas entre 39 a 59 años son las que más contribuyen a este eje y las mejor representadas. Por otra parte, se destacan las correlaciones del nivel educativo y el sexo.
+
+De esta manera, este eje contrapone a las personas con Posgrado (+) de los bachilleres (-) y a los hombres(+) con las mujeres(-).
+
+-   **Eje 3:**
+
+```{r, warning=FALSE, message=FALSE}
+#Eje 3:
+ggarrange(fviz_contrib(acm, choice = "var", axes = 3),fviz_cos2(acm, choice="var",axes=3), ncol=2, nrow=1)
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje3), y = Eje3)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje3, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+  labs(title="Correlaciones Eje 3",x="Variables",y="Correlacion")+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+A excepcion de las personas que no tienen título de bachiller y las personas del pacifico, las demas categorías de la variables del nivel de estudio recogidas en el nivel de estudio y la region son las que más contribuyen a este eje y las mejor representadas. Destacando las correlaciones del nivel educativo y la región.
+
+Este eje es particularmente importante para el análisis de las regiones, contrapone a la región andina (-) con las demas regiones (a excepcion de la región del pacífico).
+
+-   **Eje 4:**
+
+```{r, warning=FALSE, message=FALSE}
+#Eje 4:
+
+ggarrange(fviz_contrib(acm, choice = "var", axes = 4),fviz_cos2(acm, choice="var",axes=4), ncol=2, nrow=1)
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje4), y = Eje4)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje4, 4)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+  labs(title="Correlaciones Eje 4",x="Variables",y="Correlacion")+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+Las categorías recogidas en Adulto Mayor, Menor de edad, 39 a 59 años, la region caribe y la categoria "OTRA" de la variable Region son las que más contribuyen a este eje y las mejor representadas. Por otra parte, se destacan las correlaciones de la edad y la region.
+
+Este eje es particularmente importnte para el analisis de la edad, contrapone a los adultos mayores (-) con los menores de edad (+).
+
+-   **Eje 5:**
+
+```{r, warning=FALSE, message=FALSE}
+#Eje 5:
+
+ggarrange(fviz_contrib(acm, choice = "var", axes = 5),fviz_cos2(acm, choice="var",axes=5), ncol=2, nrow=1)
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje5), y = Eje5)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje5, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+  labs(title="Correlaciones Eje 5",x="Variables",y="Correlacion")+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+Unicamente se destaca la contribucion y la calidad de la region pacifica. De esta misma manera, solo se destaca la correlacion de la variable region con este eje.
+
+Este eje es particularmente importante para complementar el analisis deltercer eje, en este caso contrapone a la region pacifica (+) con las demas regiones.
+
+### Planos factoriales para el analisis
+
+A partir del analisis anterior se deciden estudiar los siguientes planos factoriales:
+
+1.  Ejes 1 y 2: Estudiar el comportamiento de las edades, el sexo y el nivel educativo.
+2.  Ejes 1 y 4: Complementar el estudio de las edades y el nivel de estudio (solamente con el primer grupo de variables suplementarias).
+3.  Ejes 3 y 5: Estudiar el comportamiento de las regiones
+
+Para ver las asociaciones entre las categorias de las variables activas basta con analizar los planos factoriales 1 y 3.
+
+```{r, fig.width=10, fig.height=7, fig.align="center"}
+
+a<-fviz_mca_var(acm,axes = c(1,2), col.var = "cos2", repel = TRUE, 
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                select.var = list(name=c("P","NPTT","F","M","AM","MB","B","ME","18A38","39A59")),
+                ggtheme = theme_minimal())
+a1<-fviz_mca_var(acm,axes = c(3,5), col.var = "cos2", repel = TRUE, 
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                 select.var = list(name=c("ANDI","PACI","CARI","OTRA")),
+                 ggtheme = theme_minimal())
+
+
+ggarrange(a,a1, ncol=2, nrow=1)
+```
+
+#### Análisis del primer plano factorial
+
+Con una gran diferencia, las variables con una menor frecuencia son Posgrado, adulto mayor y menores de edad. Entre las categorias de las variables activas podemos notar la asociacion entre las personas entre 18 y 38 años con los bachilleres, al igual que la asociacion entre las personas que tienen un titulo de normalista, pregrado, tecnico o tecnologo con el grupo masculino.
+
+Por otro lado, vemos que a la derecha del grafico se ubican quienes no tienen titulo de bachillerato, los menores de edad y adultos mayores lo que nos podria indicar varias cosas:
+
+1.  Los menores de edad que estan trabajando tuvieron que abandonar sus estudios o se han atrasado en estos mismos por la necesidad de trabajar.
+
+2.  Los adultos mayores que siguen trabajando, tienen menos oportunidades laborales a causa de su nivel academico y como este pude influir a la hora de conseguir un empleo.
+
+En los otros cuadrantes podemos ver que:
+
+-   A la derecha en la parte superior se ubican quienes tienen titulos de posgrados y las personas entre 39 y 59 años, lo que nos da una idea de su asociacion.
+
+-   A contraposicion de los hombres, las mujeres tienen una mayor proporcion de mujeres que no tienen un titulo de bachiller.
+
+#### Análisis del tercer plano factorial:
+
+El plano se divide de la siguiente manera:
+
+-   En el eje 3 las regiones Caribe, Amazonia, Orinoquia e insular (+) contrapuestas cpn la region andina (-)
+
+-   En la parte superior se ubica la region pacifica.
+
+Se destaca la asociacion entre la region Caribe con la Amazonia, Orinoquia e insular con coordenadas similares.
+
+::: {.callout-note title="Aclaración"}
+Para no saturar la informacion de los graficos se proyectaran las categorias suplementarias de la misma manera que se dividieron los grupos para cada ACM.
+:::
+
+## Análisis por variables suplementarias:
+
+### Variables suplementarias referentes al trabajo actual
+
+#### Primer plano Factorial (Ejes 1 y 2)
+
+```{r, fig.width=10, fig.height=7, fig.align="center"}
+
+#Primer plano factorial (Ejes 1 y 2)
+a<-fviz_mca_var(acm,axes = c(1,2), col.var = "cos2", repel = TRUE, 
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                select.var = list(name=c("EETE_EG","EETE_EP","EETE_OTRO","2-19","20-100","M100","TS","B","MB","NPTT","P","F","M","AM","ME","18A38","39A59")),
+                ggtheme = theme_minimal())
+a1<-fviz_mca_var(acm,axes = c(1,2), col.var = "cos2", repel = TRUE, 
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                 select.var = list(name=c("DRPST_CA","DRPST_EVOV","DRPST_LOF","DRPST_OTRO","HTYRSC_NO","HTYRSC_SI","B","MB","NPTT","P","F","M","AM","ME","18A38","39A59")),
+                 ggtheme = theme_minimal())
+
+
+ggarrange(a,a1, ncol=2, nrow=1)
+```
+
+Respecto a las variables suplementarias que se graficaron y en base a sus valores test se destaca que:
+
+-   Las personas que trabajan “En kiosco”, “En un vehículo”, “De puerta en puerta”, “Sitio al descubierto en la calle”, “En una obra en construcción”, “En una obra o cantera” y “Otro” tienen una mayor proporcion respecto al promedio de mujeres, al igual que las empresas que tienen entre 2 y 19 trabajadores y las personas que trabajan en el campo.
+
+-   El grupo de personas que trabajan en una oficina tienen una mayor proporcion con respecto al promedio de hombres y a su vez, de personas con titulos de normalista, pregrado, tecnico o tecnologo. Caso similar con las empresas con mas de 100 trabajadores, lo que indicaria que los trabajos en estas mismas son de oficina, ya que sus coordenadas son muy similares.
+
+-   Los grupos de personas que trabajan en el campo y quienes son “Empleado doméstico”, “Trabajador familiar sin remuneración”, “Trabajador sin remuneración en empresas o negocios de otros hogares”, “Jornalero o peón”, “Otro” tienen una mayor proporcion de personas que no tienen un titulo de bachiller, de adultos mayores y menores de edad, lo que evidencia 2 aspectos:
+
+1.  La importancia de tener por lo menos un titulo de bachiller para tener un mejor empleo y a su vez una pronta jubilacion.
+
+2.  El dificil acceso a la educacion en zonas rurales.
+
+-   El grupo de personas que trabajan solas y los que realizan sus trabajos "en esta o en otras viviendas" tienen coordenadas muy similares y a su vez tienen una mayor proporcion con respecto al promedio de personas entre 39 y 59 años.
+
+-   Los empleados gubernamentales tienen una mayor proporcion respecto al promedio de personas con titulo de posgrado y personas entre los 38 y 59 años.
+
+-   Los empleados de empresar particular tienen una mayor proporcion respecto al promedio de personas entre 18 y 38 años y de bachilleres.
+
+#### Segundo plano Factorial (Ejes 1 y 4)
+
+```{r, fig.width=11, fig.height=7, fig.align="center"}
+#Segundo plano factorial (Ejes 1 y 4)
+
+a<-fviz_mca_var(acm,axes = c(1,4), col.var = "cos2", repel = TRUE, 
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                select.var = list(name=c("EETE_EG","2-19","20-100","M100","TS","MB","NPTT","AM","ME","18A38","39A59")),
+                ggtheme = theme_minimal())
+a1<-fviz_mca_var(acm,axes = c(1,4), col.var = "cos2", repel = TRUE, 
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                 select.var = list(name=c("DRPST_CA","DRPST_LOF","DRPST_OTRO","HTYRSC_NO","HTYRSC_SI","MB","NPTT","AM","ME","18A38","39A59")),
+                 ggtheme = theme_minimal())
+
+ggarrange(a,a1, ncol=2, nrow=1)
+```
+
+En este caso el eje 4 no nos ayuda mucho para la interpretacion. Sin embargo, en el eje 1 logramos evidenciar ciertas asociasiones que no eran muy evidentes en el primer plano.
+
+-   El grupo de personas que trabajan en una empresa que tienen entre 2 y 19 trabajadores tienen una mayor proporcion respecto al promedio de personas que tienen entre 39 y 59 años.
+
+-   El grupo de personas que trabajan en una empresa que tienen entre 20 y 100 trabajadores tienen una mayor proporcion respecto al promedio de personas que tienen entre 18 y 38 años y de personas con titulos de normalista, pregrado, tecnico o tecnologo.
+
+#### Tercer plano Factorial (Ejes 3 y 5)
+
+```{r, fig.width=11, fig.height=7, fig.align="center"}
+#Tercer plano factorial (Ejes 3 y 5)
+a<-fviz_mca_var(acm,axes = c(3,5), col.var = "cos2", repel = TRUE, 
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                select.var = list(name=c("EETE_EG","EETE_EP","EETE_OTRO","DRPST_CA","DRPST_EVOV","DRPST_LOF","DRPST_OTRO","ANDI","PACI","CARI","OTRA")),
+                ggtheme = theme_minimal())
+a1<-fviz_mca_var(acm,axes = c(3,5), col.var = "cos2", repel = TRUE, 
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                 select.var = list(name=c("2-19","20-100","M100","TS","HTYRSC_NO","HTYRSC_SI","ANDI","PACI","CARI","OTRA")),
+                 ggtheme = theme_minimal())
+
+
+ggarrange(a,a1, ncol=2, nrow=1)
+```
+
+Respecto a las variables suplementarias que se graficaron y en base a sus valores test se destaca que:
+
+-   Los grupos de personas que trabajan “En kiosco”, “En un vehículo”, “De puerta en puerta”, “Sitio al descubierto en la calle”, “En una obra en construcción”, “En una obra o cantera” y “Otro”,los empleados gubernamentales y las personas en empresas con mas de 20 trabajadores (20-100 y mas de 100) tienen una mayor proporcion respecto al promedio de personas en la region Andina.
+
+-   El grupo de personas que trabajan en el campo tienen una mayor proporcion respecto al promedio de personas que son de la region Andina, Amazonia, Orinoquia e insular, lo que es de esperarse debido a las gran masa rural que hay en estas zonas.
+
+-   Los grupos de personas que son “Empleado doméstico”, “Trabajador familiar sin remuneración”, “Trabajador sin remuneración en empresas o negocios de otros hogares”, “Jornalero o peón”, “Otro” tienen una mayor proporcion de personas con respecto al promedio que son de la region Caribe, caso similar a quienes trabajan solos o trabajan "en esta o en otras viviendas", pero estos 2 ultimos grupos tambien tienen una maoyr proporcion respecto al promedio de personas que son de la region del Pacifico.
+
+-   Las personas que su vida laboral no es compatible con sus responsabilidades familiares y quienes trabajan en una empresa con 2-19 trabajadores, tienen una mayor respecto al promedio de personas que son de la region pacifico.
+
+### Variables suplementarias referentes a seguridad social y las fuentes de soporte económico
+
+#### Primer plano Factorial (Ejes 1 y 2)
+
+```{r, fig.width=11, fig.height=7, fig.align="center"}
+
+#2. Cccm, ecfp, eaarp, eacc, dorgyh
+
+#Primer plano factorial (Ejes 1 y 2)
+a<-fviz_mca_var(acm,axes = c(1,2), col.var = "cos2", repel = TRUE, 
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                select.var = list(name=c("DORGYH_AHF","DORGYH_AP","DORGYH_NR","DORGYH_OTRO","ECFP_SI","ECFP_NO","ECFP_YEP","B","MB","NPTT","P","F","M","AM","ME","18A38","39A59")),
+                ggtheme = theme_minimal())
+a1<-fviz_mca_var(acm,axes = c(1,2), col.var = "cos2", repel = TRUE, 
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                 select.var = list(name=c("EACC_SI","EACC_NO","EAARP_SI","EAARP_NO","CCCM_AEPS","CCCM_ARS","CCCM_OTRO","B","MB","NPTT","P","F","M","AM","ME","18A38","39A59")),
+                 ggtheme = theme_minimal())
+
+
+ggarrange(a,a1, ncol=2, nrow=1)
+
+```
+
+Respecto a las variables suplementarias que se graficaron y en base a sus valores test se destaca que:
+
+-   Los grupos de personas que en caso de no tener trabajo no tendrian recursos para sus gastos y su hogar y quienes cubren sus gastos medicos “Con ahorros personales”, “Con ayudas de los hijos o familiares”, “Con otro tipo de seguro o cubrimiento”, “Pidiendo dinero prestado”, “Vendería su vivienda o bienes del hogar”, “Empeñaría bienes del hogar”, “No lo ha considerado”, “No tiene recursos”y “Otro” tienen una mayor proporcion respecto al promedio de mujeres.
+
+-   El grupo de personas que cotizan en un fondo de pensiones tienen una mayor proporcion con respecto al promedio de hombres.
+
+Los siguientes grupos tienen una proporcion superior al promedio de personas con titulos de normalista, pregrado, tecnico o tecnologo:
+
+1.  Quienes cotizan en un fondo de pensiones.
+
+2.  Quienes cotizan en una caja de compensacion familiar.
+
+3.  Quienes estan afiliados a una ARP
+
+4.  Quienes cubren gastos medicos a traves de la afiliacion a una EPS.
+
+-   Los grupos de personas que cubren sus gastos medicos con un regimen subsidiado de salud o con la categoria "OTRO" (vista anteriormente), las personas que no cotizan en un fondo de pensiones, quienes nos estan afiliados a una ARP, quienes no cotizan en una caja de compensasion familiar y quienes no tendrian recursos en caso de perder su trabajo tienen una mayor proporcion de personas que no tienen un titulo de bachiller lo que confirma la importancia de tener por lo menos un titulo de bachiller para tener mejores condiciones de vida o en este caso, de salud.
+
+-   El grupo de personas que se mantendrian con ahorros personales en caso de perder su empleo y las personas pensionadas tienen una mayor proporcion con respecto al promedio de personas entre 39 y 59 años.
+
+-   En particular, el grupo de personas que ya estan pensionadas tiene una mayor proporcion respecto al promedio de adultos mayores y asu vez de personas con titulos de posgrado.
+
+#### Tercer plano Factorial (Ejes 3 y 5)
+
+```{r, fig.width=11, fig.height=7, fig.align="center"}
+a<-fviz_mca_var(acm,axes = c(3,5), col.var = "cos2", repel = TRUE, 
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                select.var = list(name=c("DORGYH_AHF","DORGYH_AP","DORGYH_NR","DORGYH_OTRO","EACC_SI","EACC_NO","ECFP_SI","ECFP_NO","ANDI","PACI","CARI","OTRA")),
+                ggtheme = theme_minimal())
+a1<-fviz_mca_var(acm,axes = c(3,5), col.var = "cos2", repel = TRUE, 
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                 select.var = list(name=c("EAARP_SI","EAARP_NO","CCCM_AEPS","CCCM_ARS","CCCM_BA","CCCM_OTRO","ANDI","PACI","CARI","OTRA")),
+                 ggtheme = theme_minimal())
+ggarrange(a,a1, ncol=2, nrow=1)
+```
+
+Respecto a las variables suplementarias que se graficaron y en base a sus valores test se destaca que:
+
+-   Los siguientes grupos tienen una proporcion superior al promedio de personas que trabajan en la region Andina:
+
+1.  Quienes cotizan en un fondo de pensiones.
+
+2.  Quienes cotizan en una caja de compensacion familiar.
+
+3.  Quienes estan afiliados a una ARP
+
+4.  Quienes cubren gastos medicos a traves de la afiliacion a una EPS.
+
+5.  Quienes solventarian sus gastos a traves de ahorros personales en caso de no tener empleo.
+
+-   Los grupos de personas que son beneficiarios de un afiliado a un regimien de salud o quienes cubren sus gastos medicos “Con ahorros personales”, “Con ayudas de los hijos o familiares”, “Con otro tipo de seguro o cubrimiento”, “Pidiendo dinero prestado”, “Vendería su vivienda o bienes del hogar”, “Empeñaría bienes del hogar”, “No lo ha considerado”, “No tiene recursos” y “Otro” y quienes no tendrian recursos para solventar sus necesidades en caso de perder su empleo tienen una mayor proporcion respecto al promedio de personas que son de la region del Pacifico.
+
+-   Los siguientes grupos tienen una proporcion superior al promedio de personas que trabajan en la region del Pacifico o en el Caribe:
+
+1.  Quienes no cotizan en un fondo de pensiones.
+
+2.  Quienes no cotizan en una caja de compensacion familiar.
+
+3.  Quienes no estan afiliados a una ARP
+
+4.  Quienes cubren gastos medicos a traves de un regimen subsidiado.
+
+5.  Quienes solventarian sus gastos a traves de la ayuda de hijos o familiares.
+
+Esto nos deja ver las brechas de desigualdad en terminos de salud entre la region Andina y las demas regiones del pais.
+
+### Variables suplementarias referentes a la satisfaccion laboral
+
+#### Primer plano Factorial (Ejes 1 y 2)
+
+```{r, fig.width=11, fig.height=7, fig.align="center"}
+#3. Qtmh, escbr, eaags, cstae, dcsta, escta, escjl
+#Primer plano factorial (Ejes 1 y 2)
+a<-fviz_mca_var(acm,axes = c(1,2), col.var = "cos2", repel = TRUE, 
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                select.var = list(name=c("EAAGS_SI","EAAGS_NO", "CSTAE_SI","CSTAE_NO", "DCSTA_SI","DCSTA_NO","B","MB","NPTT","P","F","M","AM","18A38","39A59")),
+                ggtheme = theme_minimal())
+a1<-fviz_mca_var(acm,axes = c(1,2), col.var = "cos2", repel = TRUE, 
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                 select.var = list(name=c("ESCBR_SI","ESCBR_NO", "ESCTA_SI","ESCTA_NO", "ESCJL_SI","ESCJL_NO","B","MB","NPTT","P","F","M","AM","18A38","39A59")),
+                 ggtheme = theme_minimal())
+ggarrange(a,a1, ncol=2, nrow=1)
+```
+
+Respecto a las variables suplementarias que se graficaron y en base a sus valores test se destaca que:
+
+-   Los siguientes grupos tienen una proporcion superior al promedio de personas con titulos de normalista, pregrado, tecnico o tecnologo:
+
+1.  Quienes estan satisfechos con sus prestaciones y servicios.
+
+2.  Quienes consideran tener un empleo estable.
+
+3.  Quienes estan satisfechos con su jornada laboral.
+
+4.  Quienes estan satisfechos con su trabajo.
+
+-   Los siguientes grupos tienen una proporcion superior al promedio de personas que no tienen un titulo de bachiller:
+
+1.  Quienes no estan satisfechos con sus prestaciones y servicios.
+
+2.  Quienes consideran que no tienen un empleo estable.
+
+3.  Quienes no estan satisfechos con su jornada laboral.
+
+4.  Quienes no estan satisfechos con su trabajo.
+
+-   El grupo de personas que hacen parte de una agremiacion sindical tiene una mayor proporcion respecto al promedio de personas con titulos de posgradoy de personas entre 39 y 59 años..
+
+-   El grupo de personas que quieren cambiar su trabajo actual tiene una mayor proporcion respecto al promedio de personas con titulos de bachiller y personas entre 18 y 38 años.
+
+#### Tercer plano Factorial (Ejes 3 y 5)
+
+```{r, fig.width=11, fig.height=7, fig.align="center"}
+#Tercer plano factorial (Ejes 3 y 5)
+a<-fviz_mca_var(acm,axes = c(3,5), col.var = "cos2", repel = TRUE, 
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                select.var = list(name=c("ESCBR_NO","ESCBR_SI", "EAAGS_NO", "CSTAE_SI","CSTAE_NO", "QTMH_NO","ESCTA_SI","ESCJL_NO","ANDI","PACI","CARI","OTRA")),
+                ggtheme = theme_minimal())
+a1<-fviz_mca_var(acm,axes = c(3,5), col.var = "cos2", repel = TRUE, 
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+                 select.var = list(name=c("QTMH_SI","ESCTA_NO","DCSTA_NO","EAAGS_SI","DCSTA_SI","ESCJL_SI","ANDI","PACI","CARI","OTRA")),
+                 ggtheme = theme_minimal())
+ggarrange(a,a1, ncol=2, nrow=1)
+
+```
+
+-   Los siguientes grupos tienen una proporcion superior al promedio de personas que trabajan en la region Andina:
+
+1.  Quienes estan satisfechos con sus prestaciones y servicios.
+
+2.  Quienes consideran tener un empleo estable.
+
+3.  Quienes estan satisfechos con su jornada laboral.
+
+4.  Quienes estan satisfechos con su trabajo.
+
+5.  Quienes no desean cambiar su actual empleo
+
+-   Los siguientes grupos tienen una proporcion superior al promedio de personas que trabajan en la region del Pacifico:
+
+1.  Quienes no estan satisfechos con sus prestaciones y servicios.
+
+2.  Quienes consideran que no tienen un empleo estable.
+
+3.  Quienes no estan satisfechos con su jornada laboral.
+
+4.  Quienes no estan satisfechos con su trabajo.
+
+5.  Quienes desean cambiar su actual empleo
+
+6.  Quienes desean trabajar mas horas.
+
+# ACM con variables de características del trabajo actual
+
+Las variables activas para este ACM son:
+
+1.  **EETE:** ¿En este trabajo...es?
+
+    Categorías:
+
+    -   (EP) Empleado de empresa partícular.
+
+    -   (EG) Empleado del gobierno.
+
+    -   (OTRO) Otro: agrupa “Empleado doméstico”, “Patrón o empleador”, “Trabajador familiar sin remuneración”, “Trabajador sin remuneración en empresas o negocios de otros hogares”, “Jornalero o peón”, “Otro”
+
+2.  **PTET:** ¿Cuántas personas en total tiene la empresa, negocia, industria, oficina, firma, finca o sitio donde trabaja?
+
+    Categorías:
+
+    -   (TS) Trabaja solo.
+
+    -   (2-19) De 2 a 19 personas.
+
+    -   (20-100) De 20 a 100 personas.
+
+    -   (M100) Más de 100 personas.
+
+3.  **DRPST:**¿Dónde realiza principalmente su trabajo?
+
+    Categorías:
+
+    -   (EVOV) En esta u otras viviendas.
+
+    -   (LOF) Local fijo, oficina, fábrica, etc.
+
+    -   (CA) Campo o área rural.
+
+    -   (OTRO) Otro: agrupa las categorías “En kiosco”, “En un vehículo”, “De puerta en puerta”, “Sitio al descubierto en la calle”, “En una obra en construcción”, “En una obra o cantera” y “Otro”.
+
+4.  **HTYRSC:** ¿Su horario de trabajo y sus responsabilidades familiares son compatibles?
+
+    Categorías:
+
+    -   (SI) Sí son compatibles.
+
+    -   (NO) No son compatibles.
+
+```{r, warning=FALSE, message=FALSE}
+Y1=Ocupados[,c("EETE","PTET","DRPST","HTYRSC")]
+Y1<-lapply(Y1,factor)
+Y1<-as.data.frame(Y1)
+
+par(las=1, mfrow =c(2,2),mai=c(0.7,0.6,0.1,0.2))
+
+for(i in c(1:4)){
+  cat <- attributes(Y1[,i])$levels
+  per <- prop.table(table(Y1[, i])) * 100
+  pl <- plot( Y1[,i], horiz=TRUE,
+              col=length(cat):1+1,
+              ylim=c(0,5), xlim=c(0,14000), 
+              xlab=strwrap(colnames(Y1)[i], width = 20))
+   text(0, pl, paste(round(per,1),"%"), cex=1, font=2, pos=4 ,offset=0.5)
+}
+
+acm <- MCA(Ocupados, graph=FALSE, quali.sup = c(1,2,6:17,19,20,25), quanti.sup = c(21:24,26:31))
+
+df_acm <- data.frame(Variable = rownames(acm$var$eta2), 
+                     Eje1 = acm$var$eta2[,1],
+                     Eje2 = acm$var$eta2[,2],
+                     Eje3 = acm$var$eta2[,3],
+                     Eje4 = acm$var$eta2[,4])
+
+P=as.data.frame(rownames(acm[["quali.sup"]][["v.test"]]))
+
+cont=as.data.frame(acm$var$contrib)
+```
+
+## Resultados generales del análisis:
+
+-   **Histograma de la inercia:**
+
+```{r, warning=FALSE, message=FALSE}
+fviz_screeplot(acm, addlabels = TRUE, ylim = c(0, 30))
+```
+
+-   **Para la nueva inercia:**
+
+```{r, warning=FALSE, message=FALSE}
+s <- 4
+l <- acm$eig[acm$eig[,1] > 1/s, 1]
+tau <- ( s / (s - 1) )^2 * ( l - (1/s) )^2
+ptau <- tau / sum( tau ) * 100
+barplot(ptau, col="darkred", ylim = c(0,100))+text(ptau, labels = paste(round(ptau,3),"%"), pos=3)
+```
+
+### Valores test,contribución y calidad de representación de las variables con los ejes:
+
+-   **Eje 1:**
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(acm, choice = "var", axes = 1),fviz_cos2(acm, choice="var",axes=1), ncol=2, nrow=1)
+
+
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje1), y = Eje1)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje1, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+            labs(title="Correlaciones Eje 1",x="Variables",y="Correlacion")+
+            theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+kable(acm[["var"]][["v.test"]][,1], caption = "Valores Test",col.names = c("Categorías","Valores Test"))
+
+```
+
+Las categorías recogidas en "Otro" de la variable "En este trabajo es", las personas que trabajan solas y las personas que trabajan en su vivienda u otra vivienda son las que más contribuyen a este eje y las mejor representadas. Por otra parte, a excepción de la variable que describe la compatibilidad del horario laboral con las responsabilidades familiares, las variables activas tienen una importante correlación con este eje.
+
+Este eje también contrapone a los empleados del gobierno y de empresa partícular (-) con aquellos que no lo son y se agrupan en "Otro" (+), para el tamaño de empresa ocurre algo similar, ya que las personas que trabajan solas presentan un valor test positivo importante y las personas que trabajan en empresas con más de 100 empleados uno negativo considerable. Por otro lado, este eje también divide a las personas que trabajan en el campo y en su vivienda u otra vivienda (+) con aquellas que lo hacen en un local, oficina o fábrica (-).
+
+En general, separa a las personas que trabajan en un area rural de manera independiente (+) con aquellas que lo hacen en areas urbanas en empresas o fábricas con más de 100 trabajadores.
+
+-   **Eje 2:**
+
+```{r, warning=FALSE, message=FALSE}
+
+ggarrange(fviz_contrib(acm, choice = "var", axes = 2),fviz_cos2(acm, choice="var",axes=2), ncol=2, nrow=1)
+
+
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje2), y = Eje2)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje2, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+            labs(title="Correlaciones Eje 2",x="Variables",y="Correlacion")+
+            theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+kable(acm[["var"]][["v.test"]][,2], caption = "Valores Test",col.names = c("Categorías","Valores Test"))
+```
+
+Para este eje, las categorías asociadas a los empleados del gobierno, las empresas con más de 100 trabajadores y aquellas que cuenta con entre 2 y 19 empleados son las que más contribuyen y mejor representadas están. También la variable que describe el número de trabajadores de la empresa es la más correlacionada con este eje.
+
+Este eje contrapone a los empleados del gobiernos (+) con los de empresa partícular y los recogidos en la categoría "Otro" (-), las personas que ejercen en empresas de más de 100 trabajadores y aquellos que lo hacen sólos (+) contra los empleados de empresas de 2 a 19 y de 20 a 100 trabajadores (-), las personas que trabajan en el campo y las agrupadas en "Otro" (-) contra aquellas que lo hacen en una vivienda y las que laboran en un local, oficina o fábrica (+). Finalmente, separa a las personas cuyo horario laboral y responsabilidades familiares son compatibles (+) con aquellas para las cuales no es el caso (-).
+
+-   **Eje 3:**
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(acm, choice = "var", axes = 3),fviz_cos2(acm, choice="var",axes=3), ncol=2, nrow=1)
+
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje3), y = Eje3)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje3, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+            labs(title="Correlaciones Eje 3",x="Variables",y="Correlacion")+
+            theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+kable(acm[["var"]][["v.test"]][,3], caption = "Valores Test",col.names = c("Categorías","Valores Test"))
+```
+
+Las personas que trabajan en el campo son las que más contribuyen y mejor representadas están en este eje. También las que trabajan en empresas de 20 a 100 empleados pero en menor medida. Por otra parte la variable que describe el lugar de trabajo es la más correlacionada con este eje.
+
+Este eje contrapone a los empleados del gobiernos y los recogidos en la categoría "Otro" (+) con los de empresa partícular (-), las personas que ejercen en empresas de más de 100 trabajadores y aquellos que lo hacen en empresas de 2 a 19 empleados (+) contra aquellos que laboran sólos y en empresas de 20 a 100 trabajadores (-), las personas que trabajan en el campo (+) contra aquellas que lo hacen en una vivienda y las agrupadas en "Otro" (-). Finalmente, separa a las personas cuyo horario laboral y responsabilidades familiares son compatibles (+) con aquellas para las cuales no es el caso (-).
+
+-   **Eje 4:**
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(acm, choice = "var", axes = 4),fviz_cos2(acm, choice="var",axes=4), ncol=2, nrow=1)
+
+# Histograma de correlaciones con los ejes
+ggplot(df_acm, aes(x = reorder(Variable,-Eje4), y = Eje4)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje4, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+            labs(title="Correlaciones Eje 4",x="Variables",y="Correlacion")+
+            theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+kable(acm[["var"]][["v.test"]][,4], caption = "Valores Test",col.names = c("Categorías","Valores Test"))
+```
+
+Para este eje las personas que no consideran que su horario laboral y responsabilidades familiares no son compatibles son las que más contribuyen, también las mejor representadas junto a las que sí lo consideran. Así mismo, esta variable es la más correlacionada.
+
+Este eje contrapone fuertemente a las personas para las cuales su horario de trabajo y responsabilidades familiares son compatibles (-) contra las que consideran lo contrario (+), por tanto servirá especialmente para evaluar esta variable.
+
+### Planos factoriales para el análisis
+
+A partir del análisis anterior se deciden estudiar los siguientes planos factoriales:
+
+1.  Ejes 1 y 2: Evaluar el estudio del tipo de empleo, lugar de trabajo y tamaño de la empresa (número de trabajadores).
+
+2.  Ejes 1 y 4: Evaluar la compatibilidad del horario laboral y las responsabilidades familiares.
+
+3.  Ejes 2 y 3: Complementar el estudio del lugar de trabajo y tamaño de la empresa.
+
+#### Análisis del primer plano factorial
+
+```{r, warning=FALSE, message=FALSE}
+fviz_mca_var(acm, choice = "var.cat",
+             select.var = list(names=rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+Las categorías que indican que la persona trabaja para el gobierno y la que recoge la información en "Otros" se alejan del centro dada su baja proporción en la variable "EETE". Sucede algo similar con las categorías que indican que una persona trabaja en el campo o en una vivienda, éstas presentan una proporción baja. Por otra parte, la categoría que describe a las personas que trabajan solas se distancia del centro ya que tiene una proporción baja para la variable "PTET".
+
+En el primer cuadrante se encuentran las personas que trabajan solas y en viviendas (ya sea la propia u otra). En el segundo cuadrante se ubican a los empleados del gobierno y los empleados de empresas de más de 100 personas. En el cuarto cuadrante las personas que trabajan en empresas con entre 2 y 19 trabajadores y las personas que se describen como: “Empleado doméstico”, “Patrón o empleador”, “Trabajador familiar sin remuneración”, “Trabajador sin remuneración en empresas o negocios de otros hogares”, “Jornalero o peón”, “Otro”.
+
+Existe una asociacipon entre los empleados del gobierno y las personas que trabajan en empresas de más de 100 personas, de forma similar, entre las personas que trabajan solas, en una vivienda y que no trabajan ni para una empresa partícular ni para el gobierno.
+
+#### Análisis del segundo plano factorial
+
+```{r, warning=FALSE, message=FALSE}
+fviz_mca_var(acm, axes=c(1,4), choice = "var.cat",
+             select.var = list(names=rownames(subset(cont, `Dim 1` > (1/13)*100 | `Dim 4` > (1/13)*100))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+```
+
+Como se mencionó anteriormente, este plano es el que mejor resume la información referente a la compatibilidad del horario laboral y las responsabilidades familiares: valores positivos en este eje se relacionan con la compatibilidad, valores negativos lo opuesto. Pareciese haber una asociación entre la compatibilidad del horario laboral y las responsabilidades familiares con trabajar en empresas de 20 a 100 trabajadores.
+
+Sin embargo, es importante tener en cuenta que el valor tan alejado de la respuesta negativa a la compatibilida se da porque presenta una proporción baja en la variable 'HTYRSC'.
+
+#### Análisis del tercer plano factorial
+
+```{r, warning=FALSE, message=FALSE}
+fviz_mca_var(acm, axes=c(2,3), choice = "var.cat",
+             select.var = list(names=rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+
+```
+
+En este plano se evidencia de mejor forma a las personas que trabajan en el campo o áreas rurales y en empresas de 2 a 19 empleados. Ambas categorías se encuentran en el segundo cuadrante.
+
+::: {.callout-note title="Aclaración"}
+Para no saturar la información en los gráficos, se proyectaran las variables suplementarias por grupos.
+:::
+
+## Análisis por variables suplementarias
+
+### Variables suplementarias sociodemográficas y sexo
+
+#### Primer plano factorial (Ejes 1 y 2)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(1,2),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                                  times = c(4, 4)),
+             select.var = list(name=c(P[c(1:8),],
+                               rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             )
+
+g2=fviz_mca_var(acm, axes = c(1,2),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                                  times = c( 2, 4)),
+             select.var = list(name=c(P[c(42:47),],
+                               rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             )
+ggarrange(g1,g2, nrow = 1, ncol=2)
+
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas con posgrado y con un pregrado, técnico, tecnólogo o normalista suelen trabajar más en empresas de más de 100 personas y en el gobierno que el promedio, de acuerdo a su posición en el segundo cuadrante. Los bachilleres trabajan en mayor proporción en empresas de 2 a 19 empleados con respecto al promedio. Finalmente, las personas cuyo máximo nivel educativo es menor que bachiller trabajan sin pertenecer ni a una empresa partícular ni gubernamental o en empresas de 2 a 19 personas que el promedio.
+
+-   Las personas de la región Caribe trabajan en mayor proporción solas y en viviendas con respecto al promedio.
+
+-   El plano opone los sexos, dandonos que el género masculino trabaja en mayor proporción en viviendas y en solitario que el promedio.
+
+-   Los menores de edad trabajan más sin pertenecer ni a una empresa partícular ni gubernamental o en empresas de 2 a 19 personas que el promedio. Las personas de 18 a 38 se oponen a las personas de 39 a 59 años y a los adultos mayores que trabajan más solos y en viviendas con respecto al promedio.
+
+#### Segundo plano factorial (Ejes 1 y 4)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(1,4),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                                  times = c(4, 4)),
+             select.var = list(name=c(P[c(1:8),],
+                               rownames(subset(cont, `Dim 4` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             )
+
+g2=fviz_mca_var(acm, axes = c(1,4),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                                  times = c( 2, 4)),
+             select.var = list(name=c(P[c(42:47),],
+                               rownames(subset(cont, `Dim 4` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             )
+ggarrange(g1,g2, nrow = 1, ncol=2)
+
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas cuyo máximo nivel educativo es menor que bachiller y los bachilleres se oponen a las personas con pregrado, normalista, técnico o tecnólogo y consideran su horario laboral y responsabilidades familiares incompatibles con mayor proporción respecto al promedio.
+
+-   La región pacífica se contrapone a la región Andina y Caribe, ya que los encuestados de esta región consideran en mayor medida incompatibles su horario laboral y responsabilidades familiares con respecto al promedio.
+
+-   Los menores de edad se oponen a los adultos mayores y consideran su horario laboral y responsabilidades familiares incompatibles en mayor proporción en referencia al promedio.
+
+#### Tercer plano factorial (Ejes 2 y 3)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(2,3),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                                  times = c(4, 4)),
+             select.var = list(name=c(P[c(1:8),],
+                               rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             )
+
+g2=fviz_mca_var(acm, axes = c(2,3),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                                  times = c( 2, 4)),
+             select.var = list(name=c(P[c(42:47),],
+                               rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             )
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   En este plano se observa que los adultos mayores trabajan en mayor proporción en empresas de más de 100 trabajadores y para el gobierno, que el promedio.
+
+-   Los menores de edad y las personas cuyo máximo nivel educativo es menor que bachiller trabajan en mayor proporción en el campo y áreas rurales.
+
+-   Las mujeres y las personas de la regiones Insular, Amazonía y Orinoquía también trabajan más en el campo y áreas rurales que el promedio.
+
+-   Los bachilleres, las personas de 18 a 38 años y de la región pacífica trabajan en mayor proporción en empresas de 20 a 100 trabajadores que la media.
+
+### Variables suplementarias de condiciones laborales:
+
+#### Primer plano factorial (Ejes 1 y 2)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(1,2),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                               times = c(4, 3)),
+             select.var = list(name=c(P[c(9:15),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07") )
+
+g2=fviz_mca_var(acm, axes = c(1,2),
+             col.quali.sup=rep(c("darkgreen", "darkred"),
+                               times = c(2, 3)),
+             select.var = list(name=c(P[c(16,18:21),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07") )
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas afiliadas a una EPS, ARP y caja de compensasión y que cotizan a un fondo de pensiones trabajan más en empresas con más de 100 empleados y para el gobierno que el promedio. En contra parte, las personas que no cuentan con ninguna de estas afiliaciones ni cotizan a un fondo de pensiones ejercen en mayor proporción en empresas de 2 a 19 personas y fuera del sector público y privado con respecto a la media.
+
+-   Por su parte, las personas pensionadas suelen trabajar en mayor proporción en empresas de más de 100 trabajadores y para el gobierno, en relación al promedio.
+
+#### Segundo plano factorial (Ejes 1 y 4)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(1,4),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                               times = c(4, 3)),
+             select.var = list(name=c(P[c(9:15),],
+                                      rownames(subset(cont, `Dim 4` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07") )
+
+g2=fviz_mca_var(acm, axes = c(1,4),
+             col.quali.sup=rep(c("darkgreen", "darkred"),
+                               times = c(2, 2)),
+             select.var = list(name=c(P[c(16,18,19,21),],
+                                      rownames(subset(cont, `Dim 4` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07") )
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas afiliadas a una EPS, ARP y caja de compensasión y que cotizan a un fondo de pensiones consideran que su horario laboral y responsabilidades familiares son compatibles en mayor proporción que el promedio. En contra parte, las personas que no cuentan con ninguna de estas afiliaciones ni cotizan a un fondo de pensiones perciben su horario laboral y responsabilidades familiares incompatibles en mayor medida con respecto a la media.
+
+#### Tercer plano factorial (Ejes 2 y 3)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(2,3),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                               times = c(4, 3)),
+             select.var = list(name=c(P[c(9:15),],
+                                     rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07") )
+
+g2=fviz_mca_var(acm, axes = c(2,3),
+             col.quali.sup=rep(c("darkgreen", "darkred"),
+                               times = c(2, 3)),
+             select.var = list(name=c(P[c(16,18:21),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07") )
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas subsidiadas por un regimen de salud y las personas que cubrirían con ahorros personales o con prestamos los costos médicos, que no están afiliados a una ARP ni a una caja de compensación y que no cotizan a un fondo de pensiones suelen trabajar más en el campo o áreas rurales en relación al promedio
+
+-   Las personas que son beneficiarias de un afiliado a EPS trabajan y que desconocen o no quieren informar sobre su estado de afiliación a una caja de compensación trabajan en mayor proporción en empresas con entre 20 y 100 trabajadores que la media.
+
+### Otras variables suplementarias
+
+#### Primer plano factorial (Ejes 1 y 2)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(1,2),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                               times = c(2, 2)),
+             select.var = list(name=c(P[c(22:25),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+g2=fviz_mca_var(acm, axes = c(1,2),
+             col.quali.sup=rep(c("darkgreen", "darkred" ),
+                               times = c( 2, 4)),
+             select.var = list(name=c(P[c(34,35,38:41),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas que quieren trabajar más horas trabajan en empresas de 2 a 19 personas en mayor proporción que el promedio y también se desempeñan en mayor medida en empresas que no son ni partículares ni públicas con respecto a la media.
+
+-   Las personas que pertenecen a una agremiación sindical trabajan como empleados del gobierno y en empresas de más de 100 trabajadores en mayor proporción que la media. En contraste, las personas que no pertenecen a una agremiación sindical no suelen trabajar ni para una empresa partícular ni para el gobierno en la misma proporción que el promedio y tienden a trabajar más en empresas de 2 a 19 personas, con respecto al promedio.
+
+-   Las personas que, en caso de no tener trabajo, obtendrían recursos de ayudas familiares y las personas que no tendrían recursos tienden a trabajar en mayor proporción en empresas con 2 a 19 trabajadores y, adicionalmente, trabajan en mayor proporción en entidades que no son ni partículares ni gubernamentales.
+
+-   Las personas que, si no tuvieran empleo, recurrirían a ahorros personales, cesantías, ventas o prestamos, suelen trabajar como empleados del gobierno y en empresas de más de 100 trabajadores en mayor proporción con respecto al promedio.
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(1,2),
+             col.quali.sup=rep(c("darkred", "darkblue", "darkgreen"  ),
+                               times = c(2, 2, 2)),
+             select.var = list(name=c(P[c(26:31),],
+                                     rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+g2=fviz_mca_var(acm, axes = c(1,2),
+             col.quali.sup=rep(c( "#00FF00","darkred" ),
+                               times = c(2,2)),
+             select.var = list(name=c(P[c(32,33,36,37),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas que no desean cambiar su trabajo, que están satisfechas con su trabajo actual, con los beneficios y prestaciones que recibe y con su jornada laboral y que también consideran su trabajo estable, trabajan en mayor proporción en empresas de más de 100 personas y como trabajadores del gobierno con respecto a la media.
+
+-   En contraste, las personas que desean cambiar su trabajo, que están insatisfechas con su trabajo actual, con los beneficios y prestaciones que recibe y con su jornada laboral y que también no consideran su trabajo estable, trabajan en mayor proporción en locales, fábricas u oficinas, empresas de 2 a 19 personas y en entidades que no son ni partículares ni gubernamentales.
+
+#### Segundo plano factorial (Ejes 1 y 4)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(1,4),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                               times = c(2, 2)),
+             select.var = list(name=c(P[c(22:25),],
+                                      rownames(subset(cont, `Dim 4` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+g2=fviz_mca_var(acm, axes = c(1,4),
+             col.quali.sup=rep(c("darkgreen", "darkred" ),
+                               times = c( 2, 4)),
+             select.var = list(name=c(P[c(34,35,38:41),],
+                                      rownames(subset(cont, `Dim 4` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas que están en su primer empleo, que quieren trabajar más horas, que pertenecen a una agremiación sindical y que, si no tuvieran trabajo, no tendrían recursos, consideran que su horario laboral y sus responsabilidades familiares son incompatibles en mayor proporción con respecto al promedio.
+
+-   Las personas que tuvieron anteriormente otro empleo, que no quieren trabajar más horas, que no están afiliadas a una agremiación sindical y que, en caso de no tener trabajo, obtendrían recursos de ahorros personales, cesantías, prestamos o de ayudas personales, perciben que su horario laboral y sus responsabilidades familiares son más compatibles con respecto al promedio.
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(1,4),
+             col.quali.sup=rep(c("darkred", "darkblue", "darkgreen"  ),
+                               times = c(2, 2, 2)),
+             select.var = list(name=c(P[c(26:31),],
+                                      rownames(subset(cont, `Dim 4` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+g2=fviz_mca_var(acm, axes = c(1,4),
+             col.quali.sup=rep(c( "#00FF00","darkred" ),
+                               times = c(2,2)),
+             select.var = list(name=c(P[c(32,33,36,37),],
+                                      rownames(subset(cont, `Dim 4` > (1/13)*100 | `Dim 1` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas que desean cambiar su trabajo, que están insatisfechas con su trabajo actual, con los beneficios y prestaciones que recibe y con su jornada laboral y que también no consideran su trabajo estable, trabajan en mayor proporción en viviendas y solos con respecto a la media. También, consideran que su horario laboral y responsabilidades familiares son incompatibles en mayor medida que el promedio.
+
+-   Las personas que no desean cambiar su trabajo, que están satisfechas con su trabajo actual, con los beneficios y prestaciones que recibe y con su jornada laboral y que también consideran su trabajo estable, perciben que su horario laboral y sus responsabilidades familiares son compatibles en mayor proporción en lo que respecta a la media.
+
+#### Tercer plano factorial (Ejes 2 y 3)
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(2,3),
+             col.quali.sup=rep(c("darkred", "darkblue"),
+                               times = c(2, 2)),
+             select.var = list(name=c(P[c(22:25),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+g2=fviz_mca_var(acm, axes = c(2,3),
+             col.quali.sup=rep(c("darkgreen", "darkred" ),
+                               times = c( 2, 4)),
+             select.var = list(name=c(P[c(34,35,38:41),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas que tuvieron antes un trabajo y que quieren trabajar más horas laboran en mayor proporción en empresas de 20 a 100 personas que la media.
+
+-   Las personas que no están afiliadas a una agremiación sindical y que, en caso de no tener trabajo, obtendrían recursos de ayudas familiares, suelen trabajar en mayor proporción en empresas de 20 a 100 con respecto al promedio.
+
+```{r, fig.width=10, fig.height=7, fig.align='center'}
+g1=fviz_mca_var(acm, axes = c(2,3),
+             col.quali.sup=rep(c("darkred", "darkblue", "darkgreen"  ),
+                               times = c(2, 2, 2)),
+             select.var = list(name=c(P[c(26:31),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+g2=fviz_mca_var(acm, axes = c(2,3),
+             col.quali.sup=rep(c( "#00FF00","darkred" ),
+                               times = c(2,2)),
+             select.var = list(name=c(P[c(32,33,36,37),],
+                                      rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100)))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+ggarrange(g1,g2, nrow = 1, ncol=2)
+```
+
+Respecto a las variables suplementarias graficadas y sus valores test se destaca que:
+
+-   Las personas que desean cambiar su trabajo, que están insatisfechas , con los beneficios y prestaciones que recibe y que también no consideran su trabajo estable trabajan en empresas de 20 a 100 personas en mayor proporción con respecto a la media.
+
+# ACM con variables de características de las condiciones laborales
+
+Las variables activas para este ACM son:
+
+1.  **ECFP:** ¿Está cotizando actualmente a un fondo de pensiones?
+
+    Categorías:
+
+    -   (SI) Sí está cotizando a un fondo de pensiones.
+
+    -   (NO) No está cotizando a un fondo de pensiones.
+
+    -   (YEP) Ya es pensionado.
+
+2.  **CCCM:** En caso de enfermedad, ¿Cómo cubriría los costos médicos y medicamentos?
+
+    Categorías:
+
+    -   (AEPS) Afiliado a un régimen contributivo de salud (EPS).
+
+    -   (ARS) Afiliado a un régimen subsidiado de salud.
+
+    -   (BA) Beneficiario de un afiliado. 
+
+    -   (OTRO) Otro: “Con ahorros personales”, “Con ayudas de los hijos o familiares”, “Con otro tipo de seguro o cubrimiento”, “Pidiendo dinero prestado”, “Vendería su vivienda o bienes del hogar”, “Empeñaría bienes del hogar”, “No lo ha considerado”, “No tiene recursos”, “Otro”.
+
+3.  **EAARP:** ¿Está afiliado individualmente o por una empresa a una aseguradora de riesgos profesionales (arp)?
+
+    Categorías:
+
+    -   (SI) Sí está afiliado a una ARP.
+
+    -   (NO) No está afiliado a una ARP.
+
+    -   (NSNI) No sabe, no informa.
+
+4.  **EACC:** ¿Está afiliado a una caja de compensasión familiar?
+
+    Categorías:
+
+    -   (SI) Sí está afiliado a una caja de compensación familiar.
+
+    -   (SI) No está afiliado a una caja de compensación familiar.
+
+    -   (NSNI) No sabe, no informa
+
+```{r, warning=FALSE, message=FALSE}
+
+Y1=Ocupados[,c("ECFP","CCCM","EAARP","EACC")]
+Y1<-lapply(Y1,factor)
+Y1<-as.data.frame(Y1)
+
+par(las=1, mfrow =c(2,2),mai=c(0.7,0.6,0.1,0.2))
+
+for(i in c(1:4)){
+  cat <- attributes(Y1[,i])$levels
+  per <- prop.table(table(Y1[, i])) * 100
+  pl <- plot( Y1[,i], horiz=TRUE,
+              col=length(cat):1+1,
+              ylim=c(0,5), xlim=c(0,14000), 
+              xlab=strwrap(colnames(Y1)[i], width = 20))
+   text(0, pl, paste(round(per,1),"%"), cex=1, font=2, pos=4 ,offset=0.5)
+}
+
+res.MCA<-MCA(Ocupados,quanti.sup=c(21:24,26:31),quali.sup=c(1:5,10:20,25),graph=FALSE)
+
+df_acm <- data.frame(Variable = rownames(res.MCA$var$eta2), 
+                     Eje1 = res.MCA$var$eta2[,1],
+                     Eje2 = res.MCA$var$eta2[,2],
+                     Eje3 = res.MCA$var$eta2[,3])
+
+P=as.data.frame(rownames(res.MCA[["quali.sup"]][["v.test"]]))
+
+cont=as.data.frame(res.MCA$var$contrib)
+```
+
+## Resultados generales del análisis:
+
+-   Histograma de la inercia:
+
+```{r, warning=FALSE, message=FALSE}
+fviz_screeplot(res.MCA, addlabels=TRUE, ylim=c(0,45))
+```
+
+-   Para la nueva inercia:
+
+```{r, warning=FALSE, message=FALSE}
+s <- nrow(res.MCA$var$eta2)
+l <- res.MCA$eig[res.MCA$eig[,1] > 1/s, 1]
+tau <- ( s / (s - 1) )^2 * ( l - (1/s) )^2
+ptau <- tau / sum( tau ) * 100
+barplot(ptau, col="darkred", ylim = c(0,110))+text(ptau, labels = paste(round(ptau,3),"%"), pos=3)
+```
+
+### Valores test,contribución y calidad de representación de las variables con los ejes:
+
+-   **Eje 1:**
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(res.MCA, choice = "var", axes = 1),fviz_cos2(res.MCA, choice="var",axes=1), ncol=2, nrow=1)
+
+ggplot(df_acm, aes(x = reorder(Variable,-Eje1), y = Eje1)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje1, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+  labs(title="Correlaciones Eje 1",x="Variables",y="Correlacion")+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+kable(res.MCA[["var"]][["v.test"]][,1], caption = "Valores Test",col.names = c("Categorías","Valores Test"))
+```
+
+Para este eje, la mayoría de categorías, a excepción de las que describen a las personas pensionadas, que respondieron "no sabe, no informa" a si están afiliados a una caja de compensación y ARP, y las personas que cubren costos médicos como beneficiarios de un afiliado a EPS o haciendo uso de prestamos, ventas u otros, contribuyen en buena medida y están muy bien representadas.
+
+Las cuatro variables presentan una correlación alta con este eje, lo cuál es consecuente con la inercia, ya que analizando únicamente este eje, recogemos practicamente toda la variabilidad.
+
+Los valores test nos indican que las personas que cuentan con al afiliación a EPS, caja de compensación, ARP y que cotizan a un fondo de pensiones se agrupan a la izquierda (-) y se oponen fuertemente a las que no (+).
+
+En este sentido, el eje representa un indice de mejores prestaciones laborales donde, valores bajos en este eje nos dice que esas categorías presentan una proporción mayor de personas afiliadas a EPS, caja de compensación, ARP y que cotizan a un fondo de pensiones.\
+
+-   **Eje 2:**
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(res.MCA, choice = "var", axes = 2),fviz_cos2(res.MCA, choice="var",axes=2), ncol=2, nrow=1)
+
+ggplot(df_acm, aes(x = reorder(Variable,-Eje2), y = Eje2)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje2, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+  labs(title="Correlaciones Eje 2",x="Variables",y="Correlacion")+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+kable(res.MCA[["var"]][["v.test"]][,2], caption = "Valores Test",col.names = c("Categorías","Valores Test"))
+
+```
+
+Se evidencia que las respuestas de "no sabe, no informa" a las preguntas referentes sobre si el encuestado está afiliado a una caja de compensación y ARP contribuyen equitativamente y en una magnitud bastante importante al eje 2, así mismo, están muy bien representadas. Las correlaciones son consecuentes con esto último pues, las variables que recogen estas dos afiliaciones son las más correlacionadas con el eje
+
+Los valores test más significativos se dan con estas dos variables y de forma positiva, por ende tiene sentido decir que las categorías con valores más altos en este eje presentan una mayor proporción de "no sabe, no informa" como respuesta al ser encuestados sobre la afiliación a una caja de compensación y ARP.
+
+-   **Eje 3:**
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(res.MCA, choice = "var", axes = 3),fviz_cos2(res.MCA, choice="var",axes=3), ncol=2, nrow=1)
+
+ggplot(df_acm, aes(x = reorder(Variable,-Eje3), y = Eje3)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(Eje3, 3)), 
+            vjust = -0.5, 
+            color = "black", 
+            size = 3.5)+ylim(c(0,1))+
+  labs(title="Correlaciones Eje 3",x="Variables",y="Correlacion")+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+kable(res.MCA[["var"]][["v.test"]][,3], caption = "Valores Test",col.names = c("Categorías","Valores Test"))
+
+```
+
+Para este eje las categorías de las personas pensionadas y que cubrirían costos médicos mediante préstamos, ventas de bienes u otros, son las que más contribuyen y las mejor representadas. Las variables relacionadas con la situación pensional y que indaga sobre los recursos para costos médicos son las más correlacionadas con este eje.
+
+Por su valor test tan alto (+), este eje nos indica que valores altos en él es evidencia de una mayor proporción de personas pensionadas por categoría.
+
+### Planos factoriales para el análisis
+
+A partir del análisis anterior se deciden estudiar los siguientes planos factoriales:
+
+1.  Eje 1 y 2: estudiar las condiciones de seguridad social.
+
+2.  Eje 2 y 3: complementar el análisis de seguridad social enfocandonos en perfiles partículares (pensionados, personas que responden "no sabe, no informa").
+
+#### Análisis del primer plano factorial
+
+```{r, warning=FALSE, message=FALSE}
+fviz_mca_var(res.MCA, choice = "var.cat",
+             select.var = list(name=rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 1` > (1/13)*100))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+```
+
+En este plano se observa una clara asociación entre las personas afiliadas a una EPS, ARP, caja de compensación y que cotizan a un fondo de pensiones. De forma similar, existe una asociación entre las personas que están afiliadas a un régimen subsidiado de salud, las personas que no están afiliadas a una caja de compensación ni arp y adicionalmente, no cotizan a un fondo de pensiones.
+
+También es interesante ver la posición que tomas las respuestas "no sabe, no informa" en el gráfico y su lejanía del cero, esto último es consecuencia de la baja proporción que tienen estas respuestas en las variables 'EACC' y' EAARP'.
+
+#### Análisis del segundo plano factorial
+
+```{r, warning=FALSE, message=FALSE}
+fviz_mca_var(res.MCA,axes = c(2,3), choice = "var.cat",
+             select.var = list(name=rownames(subset(cont, `Dim 2` > (1/13)*100 | `Dim 3` > (1/13)*100))),
+             col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+
+```
+
+Como se mencionó anteriormente, en este plano se representan bien las categorías de las personas pensionadas y las relacionadas con los "no sabe, no informa".
+
+La lejanía de estas categorías del cero se da por su baja proporción, ocurre algo similar con las personas que cubrirían costos médicos con ayudas familiares, ventas de bienes u otros, ya que esta categoría para 'CCCM' presenta una muy baja proporción.
+
+## Análisis por variables suplementarias:
+
+### Variables suplementarias sociodemográficas y sexo:
+
+#### Primer plano factorial (Ejes 1 y 2)
+
+Respecto a las variables suplementarias y sus valores test se destaca que:
+
+-   Las personas cuyo máximo nivel educativo es bachiller o menor que bachiller no cotizan a un fondo de pensiones, no están afiliados a una ARP, EPS ni caja de compensación en mayor proporción con respecto al promedio. De manera opuesta, las personas con un pregrado, técnico, tecnológo, normalista y posgrado cotizan a un fondo de pensiones, están afiliados a una ARP, EPS y caja de compensación en mayor proporción que el promedio.
+
+-   Las personas de la región Andina destacan ya que, de manera opuesta a la región Caribe, Pacífica, Insular, Amazonía y Orinoquía, cotizan a un fondo de pensiones, están afiliados a una ARP, EPS y caja de compensación en mayor proporción que el promedio.
+
+-   Los menores de edad y los adultos mayores no cotizan a un fondo de pensiones, no están afiliados a una ARP, EPS ni caja de compensación en mayor proporción que el promedio. En contraparte, las personas de 18 a 38 años cotizan a un fondo de pensiones, están afiliados a una ARP, EPS y caja de compensación en mayor proporción que el promedio.
+
+#### Segundo plano factorial (Ejes 2 y 3)
+
+Respecto a las variables suplementarias y sus valores test se destaca que:
+
+-   Los bachilleres tienen una menor proporción de personas pensionadas que la media. Las personas con un máximo nivel educativo menor que bachiller presentan una mayor proporción de "no sabe, no informa" en las preguntas sobre la afiliación a caja de compensación y ARP con base al promedio. Las personas con un pregrado, normalista, técnico o tecnológo presentan una menor propoción de "no sabe, no indorma" como respuesta en las preguntas relacionadas con la afiliación a caja de compensación y ARP con relación a la media. Finalmente, las personas con posgrados presentan una mayor proporción de personas pensionadas con respecto al promedio.
+
+-   Las mujeres se oponen a los hombres y presentan una mayor proporción de pensionados y de personas que desconocen, o no quieren informar, si están afiliadas a una caja de compensación y ARP en relación al promedio.
+
+-   Los adultos mayores destacan y se oponen a los demás rangos de edad al contar con una mayor proporción de pensionados, también son los únicos que presentan una mayor proporción de "no sabe, no informa" en las preguntas relacionadas con la afiliación a caja de compensación y ARP, con respecto al promedio.
+
+### Variables suplementarias referentes al trabajo actual
+
+#### Primer plano factorial (Ejes 1 y 2)
+
+Respecto a las variables suplementarias y sus valores test se destaca que:
+
+-   Las personas que no trabajan ni para una empresa partícular ni para el gobierno se oponen a los trabajadores de empresa partícular o gubernamental y, presentan una menor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, que el promedio.
+
+-   Los empleados de empresas con 100 o más trabajadores se oponen a las que cuentan de a 2 a 19 trabajadores y a los que trabajan solos y, presentan una mayor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, en relación al promedio.
+
+-   Las personas que trabajan en un local, fábrica u oficina se oponen a las personas cuyo lugar de trabajo es una vivienda o un área rural y, presentan una mayor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones que la media.
+
+-   Las personas que no consideran su horario laboral y responsabilidades familiares compatibles oponen a las que sí lo consideran y, presentan una menor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, que el promedio.
+
+#### Segundo plano factorial (Ejes 2 y 3)
+
+Respecto a las variables suplementarias y sus valores test se destaca que:
+
+-   Los empleados del gobierno se oponen a los empleados de empresa partítular y a los resumidos en "otros" y, presentan una mayor porporción de pensionados que la media.
+
+-   Las personas que trabajan en empresas con más de 100 personas presentan una mayor proporción de pensionados y una menor proporción de "no sabe, no informa" al ser preguntados sobre su afiliación a EPS y ARP, con respecto al promedio. Para las personas que trabajan solas se evidencia una menor proporción de personas pensionadas que la media.
+
+-   Las personas que trabajan en viviendas tienen una menor proporción de personas pensionadas que la media y las personas que trabajan en un local, fábrica u oficina, presentan una mayor proporción de pensionados y una menor proporción de "no sabe, no informa" en las preguntas sobre afiliación a EPS y ARP, con respecto al promedio.
+
+### Otras variables suplementarias
+
+#### Primer plano factorial (Ejes 1 y 2)
+
+Respecto a las variables suplementarias y sus valores test se destaca que:
+
+-   Las personas que se encuentran en su primer empleo se oponen a las que ya habían trabajado antes y presentan una menor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, que el promedio.
+
+-   Las pesonas que no quieren trabajar más horas se oponene a las que sí y, tienen una menor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones que la media.
+
+-   Las personas que pertenecen a una agremiación sindical se oponen a las que no lo hacen y, se evidencia que poseen una mayor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, con respecto al promedio.
+
+-   Las personas que, en caso de no tener trabajo, obtendrían recursos de ahorros personales, préstamos, ventas de bienes, cesantías u otros, se oponen a las personas que obtendrían recursos mediante ayudas familiares y a las personas que no tendrían recursos y, cuentan con una mayor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones en relación al promedio.
+
+-   Las personas que desean cambiar su trabajo se oponen a las que no y, presentan una menor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, que el promedio.
+
+-   Las personas que están satisfechas con su trabajo actual se oponen a las que no lo están y, presentan una mayor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, con respecto a la media.
+
+-   Las personas que están satisfechas con los beneficios y prestaciones que recibe se oponen a las que no lo están y, presentan una mayor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, que la media.
+
+-   Las personas que no están satisfechas con su jornada laboral se oponen a las personas que sí lo están y, presentan una menor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, con base al promedio.
+
+-   Las personas que no consideran su trabajo actual estable se oponen a las que sí lo consideran y, presentan una menor proporción de personas afiliadas a una caja de compensación, ARP y EPS y que cotizan a un fondo de pensiones, que el promedio.
+
+#### Segundo plano factorial (Ejes 2 y 3)
+
+Respecto a las variables suplementarias y sus valores test se destaca que:
+
+-   Las personas afiliadas a una agremiación sindical se oponen en el eje 3 a las que no lo están y, presentan una mayor proporción de personas pensionadas que la media.
+
+-   Las personas que, si no tuvieran trabajo, recurrirían a ahorros personales, préstamos, venta de bienes, cesantías u otros, se oponen a las personas que recurrirían a ayudas familiares o directamente no tendrían recursos y, presentan una mayor proporción de personas pensionadas.
+
+-   Las personas que desean cambiar su trabajo se oponen a las que no y, presentan una menor proporción de personas pensionadas que el promedio.
+
+-   Las personas que consideran su trabajo actual estable se oponen a las que no lo consideran y, presentan una mayor proporción de personas pensionadas con respecto al promedio.
+
+# Conclusiones
+
+Respecto al nivel educativo:
+
+1.  Existe un gran contraste entre las personas que tienen títulos de normalista, pregrado, técnico o tecnólogo frente a quienes no tienen un título de bachiller. El primer grupo tiene muchas mejores oportunidades laborales, así como a su vez de seguridad social y una mejor satisfacción frente a su actual empleo. Lo que nos deja en evidencia, la importancia de un título de estos para tener una mejor vida laboral.
+
+2.  A su vez, existe un contraste con las personas con títulos de posgrado, que tienen una gran proporción de personas que ya estan pensionadas y que, a su vez, pertenecen a una agremiación sindical. Que por lo que vimos en el estudio del ACP estas personas tienen muy buenas condiciones laborales.
+
+3.  Adicionalmente, este análisis nos arrojó más caracterización de el perfil de personas con posgrados, pues sabemos que trabajan con mayor frecuencia para el gobierno, en empresas de más de 100 trabajadores y en su trabajo destacan por una mayor proporción en afiliados a caja de compensación, ARP y EPS.
+
+4.  Las personas que no han alcanzado el nivel de bachiller se desempeñan mayormente fuera de las empresas públicas y privadas, también suelen trabajar más en el campo y áreas rurales.
+
+Respecto a la afiliación a una agremiación sindical:
+
+1.  Los afiliados a una agremiación sindical nuevamente resaltan: ya se había observado en el ACP como los sindicalistas contaban con unas muy buenas condiciones laborales, el ACM lo ratificó y nos mostró que este grupo de individuos suelen trabajar más como empleados del gobierno, para empresas medianas o grandes, cuentan con una buena proporción de pensionados entre sí y suelen contar con todas las afiliaciones y prestaciones.
+
+Respecto a la región:
+
+1.  Existe un gran contraste entre la región Andina y la región del Pacifico, el primer grupo tiene muchas mejores oportunidades laborales, asi como a su vez de seguridad social y una mejor satisfacción frente a su actual empleo. Lo que nos deja en evidencia las brechas de desigualdad laboral y de desarrollo en estas regiones del país.
+
+Respecto a la edad:
+
+1.  En el estudio de la variable EDAD notamos que a una mayor edad y por lo tanto, una mayor experiencia se va accediendo a mejores condiciones laborales a excepción de ciertos casos de la población adulto mayor.
+
+2.  Los adultos mayores: es interesante analizar este perfil pues, en el ACP se había observado como estos se posicionaban como un grupo que recibía bastantes subsidios y primas, sin embargo, el segundo y tercer análisis nos dan matices interesantes. Se caracterizan por trabajar en mayor medida en el campo, en soledad y no suelen contar con todas las afiliaciones y prestaciones. También se observó, aunque era de esperarse, que dentro de este grupo hay una mayor proporción de personas con pensión.
+
+3.  Los menores de edad son uno de los grupos que menos prestaciones recibe y también suelen trabajar más en el campo o áreas rurales.
+
+Otras conclusiones:
+
+1.  Respecto a las prestaciones se evidenció que, el trabajar para una empresa particular o del gobierno, en empresas de más de 100 trabajadores y cuyo lugar de trabajo es una fábrica, un local o una oficina, facilita acceder a las mismas. También es importante recalcar que se concluye del análisis que la región Andina se destaca y en ella se encuentran mejores prestaciones.
+
+2.  Los empleados del gobierno siguen destacando, esta vez lo hacen en el tema de prestaciones pues, es más fácil acceder a más y mejores prestaciones si se trabaja para el gobierno. También es interesante ver como dentro de este grupo hay una mayor proporción de pensionados.
+
+3.  Respecto a los sexos la gran diferencia radica en el lugar de trabajo, los hombres lo suelen hacer más en el campo, por su parte las mujeres trabajan más en viviendas.

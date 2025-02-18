@@ -1,0 +1,513 @@
+---
+title: "Análisis descriptivo"
+format:
+  html:
+    toc: True
+    toc-title: "Tabla de contenidos"
+    toc-depth: 3  # Profundidad de los encabezados a enumerar
+    number-sections: true  # Activa la numeración de secciones
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Ver código"
+    link-external-newwindow: true
+    css: styles.css
+editor_options:
+  chunk_output_type: console
+---
+
+# Análisis univariado:
+
+## Variables cualitativas:
+
+-   Diagramas de barras:
+
+```{r, warning=FALSE, message=FALSE}
+library(readr)
+library(FactoClass)
+library(plotly)
+library(knitr)
+library(skimr)
+library(sqldf)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(DT)
+library(kableExtra)
+library(FactoMineR)
+library(factoextra)
+Ocupados<-read_delim("bfinal.txt", delim="@")
+
+Ocupados <- within(Ocupados, {
+  EDAD <- ifelse(EDAD <= 17, "ME",
+                 ifelse(EDAD <= 38, "18A38",
+                        ifelse(EDAD <= 59, "39A59",
+                               ifelse(EDAD >= 60, "AM", EDAD))))})
+
+Ocupados<-Ocupados[,-c(33:37)]
+
+Ocupados<-within(Ocupados,{SEXO<-factor(SEXO)
+                           REGION<-factor(REGION)
+                           MNEA<-factor(MNEA)
+                           DRPST<-factor(DRPST)
+                           EETE<-factor(EETE)
+                           CCCM<-factor(CCCM)
+                           DORGYH<-factor(DORGYH)
+                           PTET<-factor(PTET)
+                           TATDC<-factor(TATDC)
+                           ECFP<-factor(ECFP)#Ya es pensionado
+                           EAARP<-factor(EAARP)
+                           EACC<-factor(EACC)
+                           TOT<-factor(TOT)
+                           QTMH<-factor(QTMH)
+                           DCSTA<-factor(DCSTA)
+                           ESCTA<-factor(ESCTA)
+                           ESCBR<-factor(ESCBR)
+                           ESCJL<-factor(ESCJL)
+                           EAAGS<-factor(EAAGS)
+                           CSTAE<-factor(CSTAE)
+                           HTYRSC<-factor(HTYRSC)
+                           EDAD<-factor(EDAD)
+                           })
+par(las=1, mfrow =c(3,2),mai=c(0.6,0.5,0.2,0.1))
+
+OcupadosC<-Ocupados[,c(1:21,26)]
+OcupadosC<-OcupadosC[,-c(3)]
+OcupadosC<-lapply(OcupadosC,factor)
+OcupadosC<-as.data.frame(OcupadosC)
+
+for(i in c(1:21)){
+  cat <- attributes(OcupadosC[,i])$levels
+  per <- prop.table(table(OcupadosC[, i])) * 100
+  pl <- plot( OcupadosC[,i], horiz=TRUE,
+              col=length(cat):1+1,
+              ylim=c(0,6), xlim=c(0,14000), 
+              xlab=strwrap(colnames(OcupadosC)[i], width = 20))
+   text(0, pl, paste(round(per,1),"%"), cex=1, font=2, pos=4 ,offset=0.5)
+}
+
+```
+
+## Variables cuantitativas:
+
+Histogramas:
+
+```{r, warning=FALSE, message=FALSE}
+par(las=1, mfrow =c(2,2),mai=c(0.6,0.5,0.2,0.1))
+for (i in c(22:25,27:32)){
+boxplot(Ocupados[,i], main=colnames(Ocupados)[i], horizontal=TRUE, col=i)}
+```
+
+# Análisis bivariado:
+
+## Variables cuantitativas:
+
+-   **Matriz de varianzas y covarianzas muestral:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(var(Ocupados[,c(22:25,27:32)]), digits=2)
+```
+
+-   **Matriz de varianzas y covarianzas poblacional:**
+
+```{r, warning=FALSE, message=FALSE}
+n<-nrow(Ocupados)
+kable(var(Ocupados[,c(22:25,27:32)])*(n-1)/n, digits=2)
+```
+
+-   **Matriz de correlaciones:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(cor(Ocupados[,c(22:25,27:32)]), digits=2)
+```
+
+Como era de esperarse, las variables CHTUS y CHTAS, que hacen referencia a las horas trabajadas en la última semana y las horas de trabajo por semana, presentan una importante correlación positiva (0.72) entre sí ya que responden a preguntas de la encuesta bastante similares. Por otro lado, si nos enfocamos en las ganancias del último mes (CGEMP) se observa una considerable correlación positiva (0.64) con el valor que pagan o se les descuenta a las personas, en el mismo sentido pero en menor magnitud hay una correlación con las primas, tanto de vacaciones (0.35) como de servicios (0.38), y en sentido contrario, con una magnitud bastante baja hay una correlación con los subsidios, tanto familiar (-0.01) como de transporte (-0.06). También hay una correlación positiva con una magnitud no muy mayor (0.28), con el tiempo que llevan trabajando los encuestados en su trabajo actual.
+
+Otras correlaciones positivas a considerar son las que se presentan entre le valor de las primas, servicios y vacaciones (0.40) entre sí, y tiempo trabajando en el trabajo actual (0.26 vacaciones y 0.28 servicios) y el valor que pagan o se le descuentan a las personas (0.31 vacaciones y 0.36 servicios). Por otro lado hay una correlación positiva, con un valor de 0.3, entre el valor que pagan o se les descuenta a las personas y el tiempo que llevan trabajando en su actual trabajo.
+
+## Variable cuantitativa y cualitativa:
+
+### **Boxplots:**
+
+-   **Boxplots de la variable Ganancias del mes pasado y algunas variables categóricas:**
+
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(1,2))
+
+boxplot(Ocupados$CGEMP~Ocupados$MNEA,las=1, ylab = "Máximo nivel educativo alcanzado", xlab = "Ganancias del mes pasado", horizontal = T)
+boxplot(Ocupados$CGEMP~Ocupados$SEXO,las=1, ylab = "Sexo al nacer", xlab = "Ganancias del mes pasado", horizontal = T)
+boxplot(Ocupados$CGEMP~Ocupados$REGION,las=1, ylab = "Región", xlab = "Ganancias del mes pasado", horizontal = T)
+boxplot(Ocupados$CGEMP~Ocupados$EDAD,las=1, ylab = "Edad", xlab = "Ganancias del mes pasado", horizontal = T)
+boxplot(Ocupados$CGEMP~Ocupados$EETE,las=1, ylab = "En este trabajo es:", xlab = "Ganancias del mes pasado", horizontal = T)
+boxplot(Ocupados$CGEMP~Ocupados$DRPST,las=1, ylab = "	¿Dónde realiza principalmente su trabajo?", xlab = "Ganancias del mes pasado", horizontal = T)
+```
+
+A pesar de que no es demasiado claro el comportamiento de las ganancias mensuales en los boxplots, dado el tamaño de las cajas, su ubicación y en especial la cantidad de valores atípicos se observa que las mayores ganancias, según las variables categóricas, se presentan en personas con posgrados, que pertenecen a la región Andina, son adultos con una edad entre 39 y 59 años y trabajan en un local, oficina o fábrica.
+
+-   **Boxplots de la variable Subsidio Familiar y algunas variables categóricas:**
+
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(2,2))
+
+boxplot(Ocupados$SUBFM~Ocupados$ECFP,las=1, ylab = "¿Cotiza a un fondo de pensiones?", xlab = "Valor subsidio familiar", horizontal = T)
+boxplot(Ocupados$SUBFM~Ocupados$EACC,las=1, ylab = "¿Afiliado a una caja de compensación?", xlab = "Valor subsidio familiar", horizontal = T)
+boxplot(Ocupados$SUBFM~Ocupados$EAARP,las=1, ylab = "¿Afiliado a una arp?", xlab = "Valor subsidio familiar", horizontal = T)
+boxplot(Ocupados$SUBFM~Ocupados$EETE,las=1, ylab = "En este trabajo es:", xlab = "Valor subsidio familiar", horizontal = T)
+
+
+boxplot(Ocupados$SUBFM~Ocupados$EDAD,las=1, ylab = "Edad", xlab = "Valor subsidio familiar", horizontal = T)
+boxplot(Ocupados$SUBFM~Ocupados$MNEA,las=1, ylab = "Máximo nivel educativo alcanzado", xlab = "Valor subsidio familiar", horizontal = T)
+boxplot(Ocupados$SUBFM~Ocupados$REGION,las=1, ylab = "Región", xlab = "Valor subsidio familiar", horizontal = T)
+boxplot(Ocupados$SUBFM~Ocupados$SEXO,las=1, ylab = "Sexo al nacer", xlab = "Valor subsidio familiar", horizontal = T)
+```
+
+Se observa que las personas que cotizan a un fondo de pensiones y están afiliadas a una caja de compensación y a una arp tienen valores un poco más altos de subsidio familiar. Por otro lado, las personas que no tieien trabajo partículares o trabajan con el gobierno tienen los valores más bajos de subsidio familiar. Con respecto a la edad, las personas ubicadas en los extremos, menores de edad y adultos mayores, son quienes tienen un valor menor del subsidio. Finalmente, pareciese que el valor de este subsidio es mayor en el sexo femenino.
+
+-   **Boxplots de la variable Subsidio de Transporte y algunas variables categóricas:**
+
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(2,2))
+
+boxplot(Ocupados$SUBTR~Ocupados$ECFP,las=1, ylab = "¿Cotiza a un fondo de pensiones?", xlab = "Valor subsidio de transporte", horizontal = T)
+boxplot(Ocupados$SUBTR~Ocupados$EACC,las=1, ylab = "¿Afiliado a una caja de compensación?", xlab = "Valor subsidio de transporte", horizontal = T)
+boxplot(Ocupados$SUBTR~Ocupados$EAARP,las=1, ylab = "¿Afiliado a una arp?", xlab = "Valor subsidio de transporte", horizontal = T)
+boxplot(Ocupados$SUBTR~Ocupados$EETE,las=1, ylab = "En este trabajo es:", xlab = "Valor subsidio de transporte", horizontal = T)
+
+
+boxplot(Ocupados$SUBTR~Ocupados$EDAD,las=1, ylab = "Edad", xlab = "Valor subsidio de transporte", horizontal = T)
+boxplot(Ocupados$SUBTR~Ocupados$MNEA,las=1, ylab = "Máximo nivel educativo alcanzado", xlab = "Valor subsidio de transporte", horizontal = T)
+boxplot(Ocupados$SUBTR~Ocupados$REGION,las=1, ylab = "Región", xlab = "Valor subsidio de transporte", horizontal = T)
+boxplot(Ocupados$SUBTR~Ocupados$SEXO,las=1, ylab = "Sexo al nacer", xlab = "Valor subsidio de transporte", horizontal = T)
+```
+
+Con respecto al valor del subsidio de transporte, parece haber valores mayores entre las personas afiliadas a un fondo de pensiones, que cotizan a una caja de compensación y a una arp, así como también en las personas empleadas en una empresa partícular. Las personas con posgrados presentan valores menores y los valores mayores se presentan en las personas que son bachilleres o cuyo máximo nivel educativo alcanzado es menor que bachiller.
+
+-   **Boxplots de la variable Prima de Servicios y algunas variables categóricas:**
+
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(2,2))
+
+boxplot(Ocupados$PRISV~Ocupados$ECFP,las=1, ylab = "¿Cotiza a un fondo de pensiones?", xlab = "Valor prima de servicios", horizontal = T)
+boxplot(Ocupados$PRISV~Ocupados$EACC,las=1, ylab = "¿Afiliado a una caja de compensación?", xlab = "Valor prima de servicios", horizontal = T)
+boxplot(Ocupados$PRISV~Ocupados$EAARP,las=1, ylab = "¿Afiliado a una arp?", xlab = "Valor prima de servicios", horizontal = T)
+boxplot(Ocupados$PRISV~Ocupados$EETE,las=1, ylab = "En este trabajo es:", xlab = "Valor prima de servicios", horizontal = T)
+
+
+boxplot(Ocupados$PRISV~Ocupados$EDAD,las=1, ylab = "Edad", xlab = "Valor prima de servicios", horizontal = T)
+boxplot(Ocupados$PRISV~Ocupados$MNEA,las=1, ylab = "Máximo nivel educativo alcanzado", xlab = "Valor prima de servicios", horizontal = T)
+boxplot(Ocupados$PRISV~Ocupados$REGION,las=1, ylab = "Región", xlab = "Valor prima de servicios", horizontal = T)
+boxplot(Ocupados$PRISV~Ocupados$SEXO,las=1, ylab = "Sexo al nacer", xlab = "Valor prima de servicios", horizontal = T)
+```
+
+No pareciese haber mucha diferencia entre categorías a excpeción de las personas que son pensionadas y que cuentan con un posgrado, ya que éstas presentan los valores más altos. En menor medida, sucede algo similar con las personas que son empleadas del gobierno.
+
+-   **Boxplots de la variable Prima de Vacaciones y algunas variables categóricas:**
+
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(2,2))
+
+boxplot(Ocupados$PRIVC~Ocupados$ECFP,las=1, ylab = "¿Cotiza a un fondo de pensiones?", xlab = "Valor prima de vacaciones", horizontal = T)
+boxplot(Ocupados$PRIVC~Ocupados$EACC,las=1, ylab = "¿Afiliado a una caja de compensación?", xlab = "Valor prima de vacaciones", horizontal = T)
+boxplot(Ocupados$PRIVC~Ocupados$EAARP,las=1, ylab = "¿Afiliado a una arp?", xlab = "Valor prima de vacaciones", horizontal = T)
+boxplot(Ocupados$PRIVC~Ocupados$EETE,las=1, ylab = "En este trabajo es:", xlab = "Valor prima de vacaciones", horizontal = T)
+
+
+boxplot(Ocupados$PRIVC~Ocupados$EDAD,las=1, ylab = "Edad", xlab = "Valor prima de vacaciones", horizontal = T)
+boxplot(Ocupados$PRIVC~Ocupados$MNEA,las=1, ylab = "Máximo nivel educativo alcanzado", xlab = "Valor prima de vacaciones", horizontal = T)
+boxplot(Ocupados$PRIVC~Ocupados$REGION,las=1, ylab = "Región", xlab = "Valor prima de vacaciones", horizontal = T)
+boxplot(Ocupados$PRIVC~Ocupados$SEXO,las=1, ylab = "Sexo al nacer", xlab = "Valor prima de vacaciones", horizontal = T)
+```
+
+Las personas que son empleadas del gobierno y que cuentan con un posgrado presentan los valores más altos en la prima de vacaciones.
+
+### **Valores test:**
+
+-   **Por edad:**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$EDAD, tipo.v = "co")
+```
+
+Las adultos con una edad entre 18 y 38 años presentan en promedio mayores valores de subsidio de transporte y subsidio familiar, así como valores menores en promedio de prima de servicios y vacaciones, ganancias del último mes y cuanto pagan o descuentos.
+
+Los adultos con una edad entre 39 y 59 años presentan valores mayores en promedio en las ganancias del último mes, primas de vacaciones y servicios, y cuanto pagan o les descuentan mensualmente.
+
+Los adultos mayores tienen valores mayores en promedio en cuanto pagan o les descuentan mensualmente, primas de servicios y vacaciones y las ganancias del último mes. Por otro lado, se observan valores menores en promedio en los subsidios, tanto familiar como de transporte.
+
+Los menores de edad presentan valores menores en promedio en las seis variables.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$EDAD, tipo.v = "co")
+```
+
+Los adultos de entre 18 y 38 años tienen en promedio un valor mayor de horas trabajadas en la última semana y a la semana, también presentan en promedio valores menores en el tiempo que llevan trabajando en su trabajo actual.
+
+Los adultos de entre 39 y 59 años presentan valores mayores en promedio de horas trabajadas a la semana y en la última semana, así como valores menores en promedio de tiempo trabajando en su empresa actual y tiempo que tardan en llegar a su lugar de trabajo.
+
+Los adultos mayores tienen en promedio valores mayores del tiempo que llevan trabajando en su trabajo actual. Por otro lado, se observan valores menores en promedio en las horas trabajadas a la semana y en la última semana.
+
+Los menores de edad presentan valores menores en promedio en las cuatro variables.
+
+-   **Por sexo:**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$SEXO, tipo.v = "co")
+```
+
+Las personas de sexo femenino presentan valores mayores en promedio de gangancias en el último mes y valores menores en promedio de prima de vacaciones.
+
+Las personas de sexo masculino presentan valores mayores en promedio de prima de vacaciones y valores menores en promedio de ganancias en el último mes.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$SEXO, tipo.v = "co")
+```
+
+Las personas de sexo femenino tienen en promedio valores mayores de horas trabajadas a la semana y en la última semana.
+
+Las personas de sexo masculino tienen en promedio valores menores de horas trabajadas a la semana y en la última semana.
+
+-   **Por máximo nivel educativo:**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$MNEA, tipo.v = "co")
+```
+
+Las personas cuyo máximo nivel educativo es bachiller presentan en promedio valores mayores de subsidios, tanto de transporte como familiar, y en promedio valores menores de primas, tanto de servicios como de vacaciones, cuanto pagan o les descuentan y ganancias mensuales. Las personas cuyo máximo nivel educativo es menor a bachiller presentan valores menores en las seis variables en promedio. Las personas con un título de normalista, pregrado, técnico o tecnólogo presentan valores mayores en promedio en las seis variables. Las personas con posgrado presentan valores mayores en promedio de primas, tanto de servicios como de vacaciones, así como de cuanto pagan o les descuentan mensualmente y ganancias mensuales. Por otro lado, presentan en promedio valores menores de subsidios, tanto familiar como de transporte.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$MNEA, tipo.v = "co")
+```
+
+Las personas cuyo máximo nivel educativo es bachiller presentan en promedio valores mayores de horas trabajadas a la semana y en la última semana, y en promedio valores menores en el tiempo que llevan en su trabajo actual y que tardan en llegar a su lugar de trabajo. Las personas cuyo máximo nivel educativo es menor a bachiller presentan valores menores en las horas que trabajan a la semana, que trabajaron en la última semana y en el tiempo que tardan en llegar a su lugar de trabajo. Las personas con un título de normalista, pregrado, técnico o tecnólogo presentan valores mayores en promedio en el tiempo que llevan en su trabajo actual y que tardan en llegar a su lugar de trabajo. Por otro lado, presentan valores en promedio en las horas que trabajaron en la última semana. Las personas con posgrado presentan valores mayores en promedio en el tiempo que llevan en su trabajo actual y que tardan en llegar a su lugar de trabajo. Por otro lado, presentan en promedio valores menores en las horas trabajadas a la semana y en la última semana.
+
+-   **Por región:**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$REGION, tipo.v = "co")
+```
+
+Las personas de la región Andina presentan en promedio mayores valores en ganancias mensuales, cuanto pagan o les descuentan mensualmente y subsidio de transporte. Las personas de la región Caribe tienen en promedio valores menores de ganancias mensuales. Las personas de otras regiones presentan en promedio valores mayores en los subsidios, tanto de transporte como familiar, y cuanto pagan y les descuentan mensualmente. Las personas de la región Pacífica presentan valores menores en promedio en ganancias mensuales, cuanto pagan o les descuentan mensualmente y subsidio de transporte.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$REGION, tipo.v = "co")
+```
+
+Las personas de la región Andina presentan en promedio mayores valores en las horas que trabajan a la semana y que trabajaron en la última semana. Las personas de la región Caribe tienen en promedio valores mayores de horas trabajadas la última semana y en el tiempo que llevan en su trabajo actual. También se observan valores menores en promedio del tiempo que tardan en llegar a su lugar de trabajo. Las personas de otras regiones presentan en promedio valores mayores en las horas que trabajaron en la última semana y que trabajan a la semana. Por otro lado, presentan en predio valores menores en el tiempo que llevan trabajando en su trabajo actual y que tardan en llegar a su lugar de trabajo. Las personas de la región Pacífica presentan valores menores en promedio en el tiempo que tardan en llegar a su lugar de trabajo y en las horas que trabajaron en la última semana y que trabajan a la semana.
+
+-   **Por ¿En este trabajo es?**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$EETE, tipo.v = "co")
+```
+
+Los empleados del gobierno tienen valores en promedio mayores de primas, de servicio y de vacaciones, de cuanto pagan o les descuentan mensualmente, ganancias del último mes y subsidio familiar. Por otro lado, se observan valores menores en promedio de subsidio de transporte. Los empleados de empresa particular presentan valores mayores en promedio de subsidios, tanto familiar como de transporte. En cambio, presentan valores menores en promedio de ganancias mensuales, cuanto pagan o les descuentan mensualmente y de primas, tanto de servicios como de vacaciones. Las personas que no trabajan ni para el gobierno ni en una empresa particular presentan valores menores en promedios en las seis variables.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$EETE, tipo.v = "co")
+```
+
+Los empleados del gobierno tienen valores en promedio mayores en el tiempo que llevan trabajando en su actual trabajo. Por otro lado, se observan valores menores en promedio en las horas que trabajan a la semana y que trabajaron en la última semana. Los empleados de empresa particular presentan valores mayores en las horas trabajadas a la semana y que trabajaron en la última semana. En contraste, presentan valores menores en promedio en el tiempo que llevan trabajando en su trabajo actual. Las personas que no trabajan ni para el gobierno ni en una empresa particular presentan valores menores en promedios en el tiempo que llevan trabajando en su empleo actual, y en las horas que trabajaron en la última semana y que trabajaron en la última semana.
+
+-   **Por ¿Está satisfecho con su trabajo actual?**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$ESCTA, tipo.v = "co")
+```
+
+Las personas que no están satisfechas con su trabajo actual presentan valores menores en promedio en las seis variables.
+
+Las personas que sí están satisfechas con su trabajo actual tienen valores mayores en promedio en las seis variables.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$ESCTA, tipo.v = "co")
+```
+
+Las personas que no están satisfechas con su trabajo actual presentan valores menores en promedio en las cuatro variables.
+
+Las personas que sí están satisfechas con su trabajo actual tienen valores mayores en promedio en las cuatro variables.
+
+-   **Por ¿Está satisfecho con las bonificaciones que recibe?**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$ESCBR, tipo.v = "co")
+```
+
+Las personas que no están satisfechas con las bonificaciones que reciben presentan valores menores en promedio en las seis variables.
+
+Las personas que sí están satisfechas con las bonificaciones que reciben tienen valores mayores en promedio en las seis variables.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$ESCBR, tipo.v = "co")
+```
+
+Las personas que no están satisfechas con las bonificaciones que reciben presentan valores menores en promedio en las cuatro variables.
+
+Las personas que sí están satisfechas con las bonificaciones que reciben tienen valores mayores en promedio en las cuatro variables.
+
+-   **Por ¿Considera que su empleo o trabajo actual es estable?**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$CSTAE, tipo.v = "co")
+```
+
+Las personas que no consideran que su trabajo actual es estable presentan valores menores en promedio en las seis variables.
+
+Las personas que consideran que su trabajo actual es estable tienen valores mayores en promedio en las seis variables.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$CSTAE, tipo.v = "co")
+```
+
+Las personas que no consideran que su trabajo actual es estable presentan valores menores en promedio en las horas que trabajaron en la última semana y que trabajan por semana y en el tiempo que llevan trabajando en su empleo actual.
+
+Las personas que consideran que su trabajo actual es estable presentan valores mayores en promedio en las horas que trabajaron en la última semana y que trabajan por semana y en el tiempo que llevan trabajando en su empleo actual.
+
+-   **Por ¿Desea cambiar el trabajo que tiene actualmente?**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$DCSTA, tipo.v = "co")
+```
+
+Las personas que no desean cambiar su trabajo actual presentan valores mayores en promedio en las seis variables.
+
+Las personas que desean cambiar su trabajo actual tienen valores menores en promedio en las seis variables.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$DCSTA, tipo.v = "co")
+```
+
+Las personas que no desean cambiar su trabajo actual presentan valores mayores en promedio en las horas que trabajaron en la última semana y que trabajan por semana y en el tiempo que llevan trabajando en su empleo actual.
+
+Las personas que desean cambiar su trabajo actual tienen valores menores en promedio en las horas que trabajaron en la última semana y que trabajan por semana y en el tiempo que llevan trabajando en su empleo actual.
+
+-   **Por ¿Está afiliado individualmente o por una empresa a una aseguradora de riesgos profesionales (arp)?**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$EAARP, tipo.v = "co")
+```
+
+Las personas que no están afiliadas a una arp presentan valores menores en promedio en las seis variables.
+
+Las personas que están afiliadas a una arp tienen valores mayores en promedio en las seis variables.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$EAARP, tipo.v = "co")
+```
+
+Las personas que no están afiliadas a una arp presentan valores menores en promedio en las cuatro variables.
+
+Las personas que están afiliadas a una arp tienen valores mayores en promedio en las cuatro variables.
+
+-   **Por ¿Está cotizando actualmente a un fondo de pensiones?**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$ECFP, tipo.v = "co")
+```
+
+Las personas que no están cotizando a un fondo de pensiones presentan valores menores en promedio en las seis variables. Las personas que están cotizando a un fondo de pensiones tienen valores mayores en promedio en las seis variables. Las personas que ya están pensionadas presentan valores mayores en promedio en el valor que pagan o les descuentan mensualmente, ganancias del último mes y primas de servicios y vacaciones. En contraste, se observan valores menores en promedio en los subsidios, tanto familiar como de transporte.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$ECFP, tipo.v = "co")
+```
+
+Las personas que no están cotizando a un fondo de pensiones presentan valores menores en promedio en las cuatro variables. Las personas que están cotizando a un fondo de pensiones tienen valores mayores en promedio en las cuatro variables. Las personas que ya están pensionadas presentan valores mayores en promedio en el tiempo que llevan trabajando en su empleo actual. Por otro lado, tienen valores menores en promedio en las horas que trabajaron en la última semana y las horas que trabajan por semana.
+
+-   **Por ¿Está afiliado a una caja de compensación familiar?**
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(22:25,30,32)], Ocupados$EACC, tipo.v = "co")
+```
+
+Las personas que no están afiliadas a una caja de compensación presentan valores menores en promedio en las seis variables.
+
+Las personas que están afiliadas a una caja de compensación tienen valores mayores en promedio en las seis variables.
+
+```{r, warning=FALSE, message=FALSE}
+cluster.carac(Ocupados[,c(27:29,31)], Ocupados$EACC, tipo.v = "co")
+```
+
+Las personas que no están afiliadas a una caja de compensación presentan valores menores en promedio en las cuatro variables.
+
+Las personas que no saben o no informan si están afiliadas a una caja de compensación tienen valores mayores en promedio en las horas que trabajaron en la última semana. Por otro lado, se observa que presentan valores menores en promedio en el tiempo que llevan trabajando en su empleo actual y el tiempo que tardan en llegar a su lugar de trabajo.
+
+Las personas que están afiliadas a una caja de compensación presentan valores mayores en promedio en las cuatro variables.
+
+## **Variables cualitativas:**
+
+#### ¿Está afiliado a una caja de compensación familiar?
+
+```{r, warning=FALSE, message=FALSE}
+
+par(mfrow=c(3,2), mai=c(0.4,1,0.3,0.1))
+
+for(i in c(1,2,21,26,4,14,15,18,13,8,9,6)){
+  tc <- table(Ocupados$EACC, Ocupados[[i]])
+  plotct(tc, "row", col=1+(1:ncol(tc)))
+  title(main = names(Ocupados)[i])
+}
+
+X<- lapply(Ocupados[, c(1, 2, 21, 26, 4, 14, 15, 18, 13, 8, 9, 6)], factor)
+kable(chisq.carac(X, Ocupados$EACC, decr = FALSE), digits=3)
+
+X<- as.data.frame(X)
+cluster.carac(X,Ocupados$EACC)
+```
+
+Con respecto a las personas que están afiliadas a una caja de compensación Se observa que la proporción de personas cuyo máximo nivel educativo es menor que bachiller es menor y que para las personas cuyo máximo nivel educativo es normalista, pregrado, técnico o tecnólogo es mayor la proporción así como también para las personas con posgrado. Por otro lado, se observa que la proporción de la región Andina es mayor, la proporción de la región Caribe es menor, la proporción de otras regiones también es menor y la proporción de la región Pacífica también es menor. También se ve que la proporción de empleados particulares es mayor, así como la proporción de empleados del gobierno es menor. Además, se observa que la proporción de personas que están satisfechas con su trabajo, que están satisfechas con los beneficios recibidos que consideran su trabajo estable, que no desean cambiar su trabajo actual, que están cotizando en un fondo de pensiones, que están afiliados a una ARP y que realizan su trabajo en un local, oficina o fábrica es mayor.
+
+Con respecto a las personas que no están afiliadas a una caja de compensación, se observa que la proporción de bachilleres es menor, la proporción de posgrados es menor, la proporción de la región Andina es menor y la proporción de la región Caribe es mayor. También se observa que la proporción de empleados particulares es mayor, la proporción de personas que no están satisfechas con su trabajo es mayor, la proporción de personas que no están satisfechos con sus beneficios es mayor, la proporción de personas que consideran que no consideran su trabajo actual estable es mayor, la proporción de personas que desean cambiar su trabajo actual es mayor y que la proporción de personas que no están cotizando un fondo de pensiones y que no están afiliados a una ARP, es mayor.
+
+Con respecto a las personas que respondieron no sabe no informa si están afiliadas a una caja de compensación se tiene que, hay una mayor proporción de bachilleres, una menor proporción de posgrados, una menor proporción de la región Andina, una mayor proporción de la región Pacífica, una mayor proporción del sexo femenino, una mayor proporción de las personas que tienen una edad entre 18 y 38 años, una menor proporción entre personas que tienen de 39 a 59 años. También hay una mayor proporción en empleados particulares, una menor proporción en empleados del gobierno, se tiene que hay una menor proporción en personas que están satisfechas con su trabajo actual, hay una menor proporción de personas que consideran su trabajo actual estable, hay una mayor proporción de personas que cambiarían su trabajo actual, hay una mayor proporción de personas que están cotizando un fondo de pensiones, una mayor proporción de personas que están afiliados a una arp y hay una mayor proporción de personas que realizan su trabajo en otros lugares.
+
+Con respecto a la prueba chi cuadrado dado los valores tan bajos del p-valor, decimos que, ninguna variable es independiente con la variable que indica si una persona está afiliada a una caja de compensación familiar.
+
+#### ¿Está cotizando actualmente a un fondo de pensiones?
+
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(3,2), mai=c(0.4,1,0.3,0.1))
+
+for(i in c(1,2,21,26,4,14,15,18,13,10,9,6)){
+  tc <- table(Ocupados$ECFP, Ocupados[[i]])
+  plotct(tc, "row", col=1+(1:ncol(tc)))
+  title(main = names(Ocupados)[i])
+} 
+
+X<- lapply(Ocupados[, c(1,2,21,26,4,14,15,18,13,10,9,6)], factor)
+kable(chisq.carac(X, Ocupados$ECFP, decr = FALSE), digits=3)
+
+X<- as.data.frame(X)
+cluster.carac(X,Ocupados$ECFP)
+```
+
+Con respecto a las personas que están cotizando un fondo de pensiones hay una mayor proporción de personas cuyo máximo nivel educativo es bachiller, hay una mayor proporción de personas cuyo máximo nivel educativo es normalista, pregrado, técnico o tecnólogo y una menor proporción de personas cuyo máximo nivel educativo es menor que bachiller. Por otra parte, hay una mayor proporción de otras regiones y de la región andina. También hay una menor proporción de adultos mayores, una mayor proporción de personas que son empleadas particulares, una mayor proporción de personas que están satisfechas con su trabajo, una mayor proporción de personas que están satisfechas con los beneficios recibidos, una mayor proporción de personas que consideran su trabajo estable, una mayor proporción de personas que no cambiarían su trabajo actual, una mayor proporción de personas que están afiliadas a una caja de compensación, una mayor proporción de personas que están afiliadas a una arp y una mayor proporción de personas que trabajan en un local, oficina o fábrica.
+
+Con respecto a las personas que no están cotizando un fondo de pensiones se observa una mayor proporción de bachilleres y de personas cuyo máximo nivel educativo es menor que bachiller. Por otro lado, se observa una menor proporción de personas que pertenecen a la región Andina y una mayor proporción de personas que pertenecen a la región Pacífica. También se observa una menor proporción de personas cuya edad va de los 39 a los 59 años y se observa una mayor proporción de personas que no son ni empleadas del gobierno ni empleadas particulares. Se observa una menor proporción de persona que están satisfechos con su trabajo, una menor proporción de personas que están satisfechas con los beneficios recibidos, una menor proporción de personas que consideran su trabajo estable, una mayor proporción de personas que desean cambiar su trabajo actual y una mayor proporción de personas que no están afiliados a una caja de compensación y que no están afiliadas a una ARP. Finalmente, se observa una menor proporción de personas que trabajan en un local oficina o fábrica.
+
+Para las personas que ya están pensionadas se observa una proporción menor de bachilleres, de personas cuyo máximo nivel educativo es menor que bachiller y una mayor proporción de personas con posgrado. También se observa una mayor proporción de personas de la región Pacífico, se observa una mayor proporción de personas de la edad de adulto mayor, se observa una mayor proporción de empleados del gobierno, una mayor proporción de personas que están satisfechas con su trabajo, una mayor proporción de personas que están satisfechas con los beneficios recibidos, una mayor proporción de personas que consideran su trabajo estable, una mayor proporción de personas que no cambiarían su trabajo, una mayor proporción de personas que no están afiliadas a una caja de compensación, una mayor proporción de personas que están afiliadas a una arp y una mayor proporción de personas que trabajan en un local, oficina o fábrica.
+
+Para la prueba chi cuadrado, dado los p-valores, decimos que todas las variables están relacionadas a excepción de la variable sexo ya que esta cuenta con un p-valor grandísimo, por tanto podemos considerar que las variables sexo y la variable que indica si se está cotizando actualmente a un fondo de pensiones son independientes.
+
+#### ¿Está afiliado individualmente o por una empresa a una aseguradora de riesgos profesionales (arp)?
+
+```{r, warning=FALSE, message=FALSE}
+par(mfrow=c(3,2), mai=c(0.4,1,0.3,0.1))
+    
+for(i in c(1,2,21,26,4,14,15,18,13,10,8,6)){
+  tc <- table(Ocupados$EAARP, Ocupados[[i]])
+  plotct(tc, "row", col=1+(1:ncol(tc)))
+  title(main = names(Ocupados)[i])
+}
+
+X<- lapply(Ocupados[,c(1,2,21,26,4,14,15,18,13,10,8,6)], factor)
+kable(chisq.carac(X, Ocupados$EAARP, decr = FALSE), digits=3)
+
+X<- as.data.frame(X)
+cluster.carac(X,Ocupados$EAARP)
+```
+
+Con respecto a las personas que están afiliadas a una ARP se observa que, hay una mayor proporción de personas cuyo máximo nivel educativo es normalista, pregrado, técnico o tecnólogo, hay una mayor proporción de la región Andina, también hay una mayor proporción de personas que son empleadas del gobierno y una mayor proporción de personas que están satisfechas con su trabajo. Por otra parte tenemos una mayor proporción de personas que están satisfechas con los beneficios recibidos, que consideran su trabajo actual estable y que no desean cambiar su trabajo actualmente. Finalmente, hay una mayor proporción de personas que están afiliadas a una caja de compensación, que están cotizando en un fondo de pensiones y que realizan su trabajo en un local, oficina o fábrica.
+
+Para las personas que no están afiliadas a una ARP hay una mayor proporción de personas cuyo máximo nivel educativo es menor que bachiller, hay una menor proporción de personas que pertenecen a la región Andina, hay una mayor proporción de personas que no son ni empleados particulares ni empleados del gobierno, hay una mayor proporción de personas que no están satisfechas con su trabajo actual, hay una mayor proporción de personas que no están satisfechas con los beneficios recibidos, que no consideran su trabajo estable, que desearían cambiar su trabajo actual, que no están cotizando a un fondo de pensiones y que no están afiliados a una caja de compensación.
+
+Con respecto a las personas que respondieron con un no sabe no informa a si están afiliadas a una ARP se tiene que, hay una mayor proporción de personas cuyo máximo nivel educativo es bachiller, una mayor proporción de personas que pertenecen a la región Pacífica, una mayor proporción del sexo femenino, una mayor proporción de personas que no son ni empleados del gobierno ni empleados particulares. Hay una mayor proporción de personas que no están satisfechas con su trabajo, que no están satisfechos con los beneficios recibidos, que no consideran su trabajo estable, que desearían cambiar su trabajo, que no están afiliados a una caja de compensación y que no están cotizando un fondo de pensiones.
+
+Con respecto a la prueba chi cuadrado dados los p-valores podemos decir que, a excepción de la variable sexo, todas las variables están relacionadas con la variable que indica si está afiliado a una aseguradora de riesgos profesionales.

@@ -1,0 +1,1058 @@
+---
+title: "ACP"
+format:
+  html:
+    toc: True
+    toc-title: "Tabla de contenidos"
+    toc-depth: 3  # Profundidad de los encabezados a enumerar
+    number-sections: true  # Activa la numeración de secciones
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Ver código"
+    link-external-newwindow: true
+    css: styles.css
+editor_options:
+  chunk_output_type: console
+---
+
+Se realiza un ACP con el objetivo de:
+
+1.  Medir características tales como la temporalidad, subocupación, rama de actividad, ocupación u oficio, posición ocupacional, entre otras variables.
+
+2.  Evaluar relaciones entre los ingresos y salidas monetarias con la afiliación a la seguridad social en salud entre la población ocupada, analizando posibles disparidades según características sociodemográficas como edad, sexo y nivel educativo.
+
+3.  Examinar la satisfacción laboral y las percepciones sobre las condiciones de trabajo entre la población ocupada.
+
+# Características del análisis
+
+En búsqueda del cumplimiento de los objetivos anteriormente planteados, se dividen las variables cuantitativas en 2 grupos para realizar 2 ACP normados.
+
+El primero, referente a variables cuantitativas en unidades de tiempo (Horas o minutos), donde se toma como:
+
+-   **Variables Activas:** CTDHT, CHTUS, CHTAS y CTLTE
+
+-   **Variables Ilustrativas:** CGEMP
+
+-   **Variables Cualitativas Suplementarias:** Se proyectan las respuestas a las preguntas de la encuesta y las características sociodemográficas.
+
+El segundo, variables cuantitativas en unidades de pesos colombianos que hacen referencia a ingresos y salidas monetarias (sueldos, gastos, subsidios), donde se toma como:
+
+-   **Variables Activas:** CGEMP, CPODM, PRIVC, PRISV, SUBFM y SUBTR
+
+-   **Variables Ilustrativas:** CTLTE
+
+-   **Variables Cualitativas Suplementarias:** Se proyectan las respuestas a las preguntas de la encuesta y las características sociodemográficas.
+
+A pesar de que en ambos casos vamos a trabajar con variables que manejan las mismas unidades, hay variables que tienen valores mucho mas grandes que las demás y que manejan escalas diferentes entre sí, por esta razón se decide hacer un ACP normado en cada grupo de variables.
+
+```{r, warning=FALSE, message=FALSE}
+library(readr)
+library(FactoClass)
+library(plotly)
+library(knitr)
+library(skimr)
+library(sqldf)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(DT)
+library(kableExtra)
+library(factoextra)
+ocupados<-read_delim("bfinal.txt", delim="@")
+Y<-read_delim("bfinal.txt", delim="@")[,c(22:25,27:37)]
+
+ocupados <- within(ocupados, {
+  EDAD <- ifelse(EDAD <= 17, "ME",
+                 ifelse(EDAD <= 38, "18A38",
+                        ifelse(EDAD <= 59, "39A59",
+                               ifelse(EDAD >= 60, "AM", EDAD))))})
+
+Y <- Y[, -c(11:15)] #Eliminar variables cuantitativas que no vamos a usar
+
+C<-ocupados[,c(1:21,26)] #Variables cualitativas
+C<- C[, -3] #Eliminar variable del contrato
+C[] <- lapply(C, factor) #Convertir el data frame a tipo factor
+C <- as.data.frame(C)
+```
+
+# ACP con variables de medidas de tiempo
+
+## Resultados generales del análisis:
+
+```{r, warning=FALSE, message=FALSE}
+acp <- dudi.pca(Y[,c(5:7,9)], scannf=FALSE, nf=3)
+```
+
+-   **Valores propios y porcentajes:**
+
+```{r, warning=FALSE, message=FALSE}
+inertia(acp)
+```
+
+El primer plano factorial retiene el 68.05% de la inercia y los tres primeros ejes, el 93.02%.
+
+-   **Histograma de valores propios:**
+
+```{r, warning=FALSE, message=FALSE}
+fviz_screeplot(acp,addlabels=TRUE,ylim=c(0,100))
+```
+
+-   **Vectores propios:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(round(acp$c1, 3))
+```
+
+### Nube de individuos:
+
+-   **Coordenadas de los individuos:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(round(acp$li, 2))%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="500px")
+```
+
+-   **Categorias de las variables cualitativas como ilustrativas:**
+
+```{r, warning=FALSE, message=FALSE}
+Ysupcat <- C
+sup <- supqual(acp, Ysupcat)
+
+kable(cbind(wcat = sup$wcat, d2 = sup$dis2, sup$coor), digits = 3)%>%
+  kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="500px")
+```
+
+-   **Valores T y cosenos cuadrados:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(cbind(sup$tv, sup$cos2), digits = 3)%>%
+  kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="500px")
+```
+
+### Nube de variables:
+
+-   **Correlaciones de las variables con los ejes:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(round(acp$co, 3))
+```
+
+En la tabla se observa que el primer eje muestra una alta correlación con los valores altos de coordenadas negativas referentes a las horas de trabajo (en general y en la última semana), mientras que el segundo eje tiene una alta correlación con los valores altos de coordenados positivas, referentes al tiempo que tardan las personas en desplazarse a su lugar de trabajo. Vemos que la variable referente al tiempo que llevan trabajando en la empresa tiene una correlación muy baja con ambos ejes. Sin embargo, en el tercer eje vemos una alta correlación con esta última variable.
+
+-   **Contribución de las variables con los ejes:**
+
+```{r, warning=FALSE, message=FALSE}
+fviz_contrib(acp,choice="var",axes=1,color="darkred")
+
+
+fviz_contrib(acp,choice="var",axes=2,color="darkgreen")
+
+
+fviz_contrib(acp,choice="var",axes=3,color="darkorange")
+```
+
+Como se puede observar en los gráficos, la contribución de las variables que describen el tiempo en horas trabajado por semana y en la última semana es significativamente alto, adicional a ello, por la correlación sabemos que tiene una relación inversa con ambas variables, con lo que concluimos que valores altos en el primer eje se asocian con valores bajos en las horas trabajadas por semana. Respecto al segundo eje, se observa una contribución bastante alta de la variable que representa al tiempo que tardan las personas en desplazarse hacia el trabajo, esto junto a una alta correlación positiva, nos permite concluir que valores altos en este eje reflejan tiempos más largos en el desplazamiento desde el hogar hasta el lugar de trabajo. Finalmente, la variable que recoge información del tiempo que lleva una persona trabajando en su empleo actual contribuye casi por completo en el tercer eje con una correlación cercana a 1, interpretamos que valores altos en este eje son sinónimo de una buena estabilidad de las personas en su actual empleo.
+
+-   **Variable ilustrativa:**
+
+```{r, warning=FALSE, message=FALSE}
+Gexam <- cor(Y$CGEMP, acp$li)
+rownames(Gexam)<-"CGEMP"
+kable(Gexam, digits = 3)
+```
+
+## Análisis por planos factoriales:
+
+::: {.callout-note title="Aclaración"}
+Dependiendo de la calidad de la representación de cada variable en los 3 ejes se decide si se proyectan o no en cada plano factorial. De igual manera con las categorías suplementarias, dependiendo de la calidad de su representación se deciden proyectarlas o no en cada plano factorial.
+:::
+
+### Primer plano factorial (Ejes 1 y 2).
+
+-   **Círculo de correlaciones de los ejes 1 y 2:**
+
+```{r, warning=FALSE, message=FALSE}
+fig<-fviz_pca_var(acp, axes = c(1,2),
+             col.var = "cos2",
+             gradient.cols=c("darkred",
+                            "darkorange",
+                            "darkgreen"))
+fviz_add(fig, Gexam, color ="blue", geom="arrow", labelsize=3)
+```
+
+-   **Análisis por máximo nivel educativo, edad y sexo al nacer:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(acp[1:5000,], Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,1), ylim = c(-1,1),main = "Maximo nivel educativo, edad y sexo al nacer")
+#s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+s.arrow(acp$co[1:3,], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[1:4,], col = 3, pch = 16)
+text(sup$coor[1:4,], labels = rownames(sup$coor[1:4,]),
+     col = 3, pos = 1, font = 3)
+points(sup$coor[57:60,], col = "blue", pch = 16)
+text(sup$coor[57:60,], labels = rownames(sup$coor[57:60,]),
+     col = "blue", pos = c(3,3,1,1), font = 3)
+points(sup$coor[55:56,], col = "red", pch = 16)
+text(sup$coor[55:56,], labels = rownames(sup$coor[55:56,]),
+     col = "red", pos = 1, font = 3)
+```
+
+Se puede evidenciar un "orden" en el primer eje en las categorías del máximo nivel educativo, lo que indica que los trabajadores con títulos de posgrado tienden a trabajar menos horas. En cambio, la edad no presenta un orden estricto, pero resalta tendencias que en un principio pueden ser "obvias", a una mayor edad se trabajan en promedio menos horas, con excepción de los menores de edad por temas legales. En cuanto a género, las mujeres trabajan en promedio mas horas que los hombres.
+
+Estos grupos de individuos no presentan diferencias muy marcadas en el tiempo de desplazamiento, a excepción de los menores de edad que tardan menos tiempo en promedio, lo que indicaría una cercanía de su lugar de residencia con su lugar de trabajo.
+
+-   **Análisis por región:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(sup$coor[5:8,1:2], col = 6, pch = 16,
+     xlim = c(-1.5,1.5), ylim = c(-1.5,1.5),
+     bty="n", axes = FALSE,,main="Región")
+text(sup$coor[5:8,1:2], labels = rownames(sup$coor[5:8,]),
+     col = 6, pos = 1, font = 3)
+curve(sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+curve(-sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+abline(h=0, col="grey"); abline(v=0, col="grey")
+s.arrow(acp$co[1:3,], add.plot = TRUE, boxes = FALSE,xax = 1, yax = 2,clabel = 0.7)
+#s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+```
+
+Se evidencia qué en las regiones Insular, Amazonia y Orinoquia **(OTRA)** se trabajan mas horas en promedio a diferencia de la región del Pacifico donde se trabajan menos horas en promedio. En la región Andina se tarda mas tiempo en promedio en llegar al lugar de trabajo, lo que se podría explicar en un mayor nivel de tráfico vehicular en esta región con respecto a las otras regiones.
+
+-   **Análisis por cargo que desempeña y lugar de trabajo:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(acp[1:5000,], Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,1), ylim = c(-1,1.5),main="Cargo que desempeña y lugar de trabajo")
+#s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+s.arrow(acp$co[1:3,], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[9:11,], col = 3, pch = 16)
+text(sup$coor[9:11,], labels = rownames(sup$coor[9:11,]),
+     col = 3, pos = c(4,2,3), font = 3)
+points(sup$coor[c(16,17,19),], col = 4, pch = 16)
+text(sup$coor[c(16,17,19),], labels = rownames(sup$coor[c(16,17,19),]),
+     col = 4, pos = 1, font = 3)
+```
+
+Con respecto al tiempo de desplazamiento no se ven diferencias muy marcadas, solamente se evidencia un tiempo mayor de desplazamiento en las personas que trabajan en zonas rurales. En cuanto a las horas de trabajo, vemos que los empleados de empresas particulares y los que trabajan "En kiosco", "En un vehículo", "De puerta en puerta", "Sitio al descubierto en la calle", "En una obra en construcción", "En una obra o cantera" y "Otro" trabajan mas horas en promedio a diferencia de los empleados del gobierno y los que trabajan en residencias.
+
+-   **Análisis por número de personas del lugar de trabajo:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(sup$coor[12:15,1:2], col = 6, pch = 16,
+     xlim = c(-1.5,1.5), ylim = c(-1.5,1.5),
+     bty="n", axes = FALSE,,main="Número de trabajadores en la empresa")
+#s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+text(sup$coor[12:15,1:2], labels = rownames(sup$coor[12:15,]),
+     col = 6, pos = 1, font = 3)
+curve(sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+curve(-sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+abline(h=0, col="grey"); abline(v=0, col="grey")
+s.arrow(acp$co[1:3,], add.plot = TRUE, boxes = FALSE,xax = 1, yax = 2,clabel = 0.7)
+```
+
+Estos grupos de individuos no presentan diferencias muy marcadas en el tiempo de desplazamiento, a excepción de la categoría 2-19 trabajadores tardan menos tiempo en promedio. A su vez no hay grandes diferencias en el numero de horas de trabajo, a excepción de las personas que trabajan solas que trabajan menos horas en promedio que las demás categorías, lo que indicaría una autonomía en el manejo del numero de horas de trabajo.
+
+-   **Análisis por la variable que indica si está cortizando a un fondo de pensiones:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(acp[1:5000,], Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="¿Cotiza fondo de pensiones?")
+#s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+s.arrow(acp$co[1:3,], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[24:26,], col = "red", pch = 16)
+text(sup$coor[24:26,], labels = rownames(sup$coor[24:26,]),
+     col = "red", pos = 1, font = 3)
+```
+
+Las personas que ya están pensionadas trabajan menos horas en promedio que las personas que no lo están, sin importar si estas últimas están cotizando o no en algún fondo de pensiones.
+
+### Segundo plano factorial (Ejes 1 y 3).
+
+-   **Circulo de correlaciones de los ejes 1 y 3:**
+
+```{r, warning=FALSE, message=FALSE}
+fig<-fviz_pca_var(acp, axes = c(1,3),
+             col.var = "cos2",
+             gradient.cols=c("darkred",
+                            "darkorange",
+                            "darkgreen"))
+fviz_add(fig, Gexam, color ="blue", geom="arrow", labelsize=3)
+```
+
+-   **Análisis por máximo nivel educativo, edad y sexo al nacer:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,1), ylim = c(-1,2),main="Maximo nivel educativo, edad y sexo al nacer")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=1,yax=3,clabel = 0.7)
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[1:4,c(1,3)], col = 3, pch = 16)
+text(sup$coor[1:4,c(1,3)], labels = rownames(sup$coor[1:4,c(1,3)]),
+     col = 3, pos = 1, font = 3)
+points(sup$coor[57:60,c(1,3)], col = "blue", pch = 16)
+text(sup$coor[57:60,c(1,3)], labels = rownames(sup$coor[57:60,]),
+     col = "blue", pos = 1, font = 3)
+points(sup$coor[55:56,c(1,3)], col = "red", pch = 16)
+text(sup$coor[55:56,c(1,3)], labels = rownames(sup$coor[55:56,]),
+     col = "red", pos = 1, font = 3)
+```
+
+Las personas con títulos de posgrado y los adultos mayores llevan mas tiempo en promedio trabajando en una misma empresa y a su vez son los que ganan mejores sueldos, mientras que los menores de edad y las personas entre 18 y 38 años son las que llevan menos tiempo. En cuanto al género, no se evidencia una diferencia marcada entre hombres y mujeres en cuanto a la duración en su trabajo actual.
+
+-   **Análisis por cargo que desempeña y lugar de trabajo:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="Cargo que desempeña y lugar de trabajo")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=1,yax=3,clabel = 0.7)
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[9:11,c(1,3)], col = 3, pch = 16)
+text(sup$coor[9:11,c(1,3)], labels = rownames(sup$coor[9:11,]),
+     col = 3, pos = 1, font = 3)
+points(sup$coor[c(16,17,18,19),c(1,3)], col = 4, pch = 16)
+text(sup$coor[c(16,17,18,19),c(1,3)], labels = rownames(sup$coor[c(16,17,18,19),]),
+     col = 4, pos = 1, font = 3)
+```
+
+Con una gran diferencia respecto a los demás, los empleados del gobierno llevan mas tiempo en promedio trabajando para una misma empresa y a su vez reciben unos mejores sueldos, mientras que el resto de grupos no se diferencian mucho entre sí. Con respecto al lugar de trabajo, las personas que trabajan en alguna residencia llevan menos tiempo en promedio trabajando en su actual empleo.
+
+-   **Análisis por número de personas del lugar de trabajo:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(sup$coor[12:15,c(1,3)], col = 6, pch = 16,
+     xlim = c(-1.5,1.5), ylim = c(-1.5,1.5),
+     bty="n", axes = FALSE,,main="Numero de personas en la empresa")
+text(sup$coor[12:15,c(1,3)], labels = rownames(sup$coor[12:15,]),
+     col = 6, pos = 1, font = 3)
+curve(sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+curve(-sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+abline(h=0, col="grey"); abline(v=0, col="grey")
+s.arrow(acp$co[2:4,], add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+```
+
+Como era de esperarse, en las empresas más grandes (más de 100 trabajadores) la gente dura más tiempo en promedio trabajando en esta empresa, a diferencia de los grupos de trabajadores pequeños (2-19 trabajadores y lo que trabajan solos).
+
+-   **Análisis por la variable que indica si está cortizando a un fondo de pensiones:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Cotiza fondo de pensiones?")
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=1,yax=3,clabel = 0.7)
+points(sup$coor[24:26,c(1,3)], col = 3, pch = 16)
+text(sup$coor[24:26,c(1,3)], labels = rownames(sup$coor[24:26,]),
+     col = 3, pos = 1, font = 3)
+```
+
+Con una gran diferencia, las personas que ya están pensionadas (y que siguen trabajando) llevan un tiempo mucho mayor al promedio trabajando en esa empresa además de tener sueldos mucho mayores al promedio, mientras que las personas que no cotizan en un fondo de pensiones no llevan mucho tiempo en su actual trabajo.
+
+-   **Análisis por varias variables cualitativas:**
+
+```{r, warning=FALSE, message=FALSE}
+#Quiere trabajar mas horas?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Quiere trabajar mas horas?")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=1,yax=3,clabel = 0.7)
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[35:36,c(1,3)], col = 3, pch = 16)
+text(sup$coor[35:36,c(1,3)], labels = rownames(sup$coor[35:36,]),
+     col = 3, pos = 1, font = 3)
+
+#Quiere cambiar de trabajo?
+plot(sup$coor[37:38,c(1,3)], col = 6, pch = 16,
+     xlim = c(-1.5,1.5), ylim = c(-1.5,1.5),
+     bty="n", axes = FALSE,,main="¿Quiere cambiar de trabajo?")
+text(sup$coor[37:38,c(1,3)], labels = rownames(sup$coor[37:38,]),
+     col = 6, pos = 1, font = 3)
+curve(sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+curve(-sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+abline(h=0, col="grey"); abline(v=0, col="grey")
+s.arrow(acp$co[2:4,], add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+
+#Esta satisfecho con su trabajo actual?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Esta satisfecho con su trabajo actual?")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=1,yax=3,clabel = 0.7)
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[39:40,c(1,3)], col = 3, pch = 16)
+text(sup$coor[39:40,c(1,3)], labels = rownames(sup$coor[39:40,]),
+     col = 3, pos = 1, font = 3)
+
+#Satisfecho con los beneficios y prestaciones?
+plot(sup$coor[41:42,c(1,3)], col = 6, pch = 16,
+     xlim = c(-1.5,1.5), ylim = c(-1.5,1.5),
+     bty="n", axes = FALSE,,main="¿Satisfecho con los beneficios y prestaciones?")
+text(sup$coor[41:42,c(1,3)], labels = rownames(sup$coor[41:42,]),
+     col = 6, pos = 1, font = 3)
+curve(sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+curve(-sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+abline(h=0, col="grey"); abline(v=0, col="grey")
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+
+#Satisfecho con su jornada laboral?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Satisfecho con su jornada laboral?")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[43:44,c(1,3)], col = 3, pch = 16)
+text(sup$coor[43:44,c(1,3)], labels = rownames(sup$coor[43:44,]),
+     col = 3, pos = 1, font = 3)
+
+#Pertenece a una agremiacion sindical?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Pertenece a una agremiacion sindical?")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=1,yax=3,clabel = 0.7)
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[45:46,c(1,3)], col = 3, pch = 16)
+text(sup$coor[45:46,c(1,3)], labels = rownames(sup$coor[45:46,]),
+     col = 3, pos = 1, font = 3)
+
+#Trabajo estable?
+plot(sup$coor[47:48,c(1,3)], col = 6, pch = 16,
+     xlim = c(-1.5,1.5), ylim = c(-1.5,1.5),
+     bty="n", axes = FALSE,,main="¿Trabajo estable?")
+text(sup$coor[47:48,c(1,3)], labels = rownames(sup$coor[47:48,]),
+     col = 6, pos = 1, font = 3)
+curve(sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+curve(-sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+abline(h=0, col="grey"); abline(v=0, col="grey")
+s.arrow(acp$co[2:4,], add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+
+#Horario y responsabilidades familiares compatibles?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Horario y responsabilidades familiares compatibles?")
+s.arrow(acp$co[2:4,c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=1,yax=3,clabel = 0.7)
+points(sup$coor[49:50,c(1,3)], col = 3, pch = 16)
+text(sup$coor[49:50,c(1,3)], labels = rownames(sup$coor[49:50,]),
+     col = 3, pos = 1, font = 3)
+
+#De no tener trabajo de donde obtendria los recursos?
+plot(sup$coor[51:54,c(1,3)], col = 1:4, pch = 16,
+     xlim = c(-1.5,1.5), ylim = c(-1.5,1.5),
+     bty="n", axes = FALSE,,main="¿De no tener trabajo de donde obtendria los recursos?")
+text(sup$coor[51:54,c(1,3)], labels = rownames(sup$coor[51:54,]),
+     col = 1:4, pos = 1:4, font = 3)
+curve(sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+curve(-sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+abline(h=0, col="grey"); abline(v=0, col="grey")
+s.arrow(acp$co[2:4,], add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,
+        xax = 1, yax = 3,clabel = 0.7)
+```
+
+Claramente las personas que trabajan un número de horas bastante reducido respecto al promedio quieren trabajar más horas. Las personas que llevan un tiempo menor al promedio en su actual trabajo tienden a querer cambiar este mismo, no estar satisfechos ni con el trabajo, ni con las prestaciones y servicios, considerar que su trabajo no es estable . Si a esto le sumamos un mayor numero de horas de trabajo, evidenciamos una insatisfacción frente a su jornada laboral además de una incompatibilidad con sus responsabilidades familiares.
+
+Las personas que pertenecen a una agremiación sindical llevan un tiempo mayor al promedio en su trabajo actual, además de tener sueldos superiores al promedio. Similarmente, las personas que, de no tener trabajo cubrirían sus gastos con ahorros personales llevan un tiempo mayor al promedio en su trabajo actual, a diferencia de quienes no tendrían recursos al quedarse sin sus puestos de trabajo.
+
+### Tercer plano factorial (Ejes 2 y 3).
+
+-   **Circulo de correlaciones de los ejes 2 y 3:**
+
+```{r, warning=FALSE, message=FALSE}
+fig<-fviz_pca_var(acp, axes = c(2,3),
+             col.var = "cos2",
+             gradient.cols=c("darkred",
+                            "darkorange",
+                            "darkgreen"))
+fviz_add(fig, Gexam, color ="blue", geom="arrow", labelsize=3)
+```
+
+-   **Análisis por varias variables cualitativas:**
+
+```{r, warning=FALSE, message=FALSE}
+#Afiliado a una aseguradora?
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Afiliado a una aseguradora?")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=2,yax=3,clabel = 0.7)
+s.arrow(acp$co[c(1,4),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[27:29,c(2,3)], col = "red", pch = 16)
+text(sup$coor[27:29,c(2,3)], labels = rownames(sup$coor[27:29,]),
+     col = "red", pos = 1:3, font = 3)
+
+#Afiliado caja de compensación familiar?
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Afiliado caja de compensación familiar?")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=2,yax=3,clabel = 0.7)
+s.arrow(acp$co[c(1,4),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[30:32,c(2,3)], col = "red", pch = 16)
+text(sup$coor[30:32,c(2,3)], labels = rownames(sup$coor[30:32,]),
+     col = "red", pos = 1:3, font = 3)
+
+#Antes tuvo otro trabajo?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,2), ylim = c(-1,1.5),main="¿Antes tuvo otro trabajo?")
+s.arrow(Gexam, add.plot = TRUE, boxes = FALSE,xax=2,yax=3,clabel = 0.7)
+s.arrow(acp$co[c(1,4),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[33:34,c(2,3)], col = 3, pch = 16)
+text(sup$coor[33:34,c(2,3)], labels = rownames(sup$coor[33:34,]),
+     col = 3, pos = 1, font = 3)
+```
+
+En este plano, se evidencia que las personas que están afiliados a una aseguradora tienen características (coordenadas) muy similares con las personas que están afiliadas a una caja de compensación familiar, destacando un mayor tiempo de desplazamiento y un mayor tiempo en su trabajo actual.
+
+Las personas que no tuvieron un trabajo anterior al que actualmente tienen o dicho de otra manera, las personas que se encuentran en su primer trabajo llevan mas tiempo en promedio que quienes si han tenido un trabajo anterior.
+
+# ACP con variables referentes a ingresos y salidas monetarias
+
+## Resultados generales del análisis:
+
+```{r, warning=FALSE, message=FALSE}
+acp <- dudi.pca(Y[,c(1,2,3,4,8,10)], scannf=FALSE, nf=4)
+```
+
+-   **Valores propios y porcentajes**
+
+```{r, warning=FALSE, message=FALSE}
+inertia(acp)
+```
+
+El primer plano factorial (Para este caso, conformado por los ejes 1 y 3) retiene el 51.92% de la inercia y los tres primeros ejes, el 70.57%. Además, vamos a hacer un único análisis con los ejes 1 y 4 para dar una interpretación de la distribución de los géneros.
+
+-   **Histograma de valores propios:**
+
+```{r, warning=FALSE, message=FALSE}
+fviz_screeplot(acp,addlabels=TRUE,ylim=c(0,100))
+```
+
+-   **Vectores propios:**
+
+```{r, warning=FALSE, message=FALSE}
+round(acp$c1, 3)
+```
+
+### Nube de individuos:
+
+-   **Coordenadas de los individuos:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(round(acp$li, 2))%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="500px")
+```
+
+-   **Categorias de las variables cualitativas como ilustrativas:**
+
+```{r, warning=FALSE, message=FALSE}
+Ysupcat <- C
+sup <- supqual(acp, Ysupcat)
+
+kable(cbind(wcat = sup$wcat, d2 = sup$dis2, sup$coor), digits = 3)%>%
+  kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="500px")
+```
+
+-   **Valores T y cosenos cuadrados:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(cbind(sup$tv, sup$cos2), digits = 3)%>%
+  kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="500px")
+```
+
+### Nube de variables:
+
+-   **Correlaciones de las variables con los ejes:**
+
+```{r, warning=FALSE, message=FALSE}
+kable(round(acp$co, 3))
+```
+
+En la tabla se observa que el primer eje muestra una alta correlación con los valores altos de coordenadas positivas referentes a los ingresos (sueldo y primas) y los gastos, mientras que el segundo eje tiene una alta correlación con los valores altos de coordenados negativas, referentes a los subsidios. El tercer contrapone los valores del subsidio familiar y las primas vs el subsidio de transporte, el sueldo y los gastos, con una mayor correlación con las variables de los subsidios.
+
+-   **Contribución de las variables con los ejes:**
+
+```{r, warning=FALSE, message=FALSE}
+fviz_contrib(acp,choice="var",axes=1,color="darkred")
+
+
+fviz_contrib(acp,choice="var",axes=2,color="darkgreen")
+
+
+fviz_contrib(acp,choice="var",axes=3,color="darkorange")
+
+
+fviz_contrib(acp,choice="var",axes=4,color="darkblue")
+```
+
+En el primer eje no es muy clara la representación de las variables, sin embargo, no se puede obviar el hecho de que este eje pareciesse estar relacionado con las personas que más dinero mueven dentro del mercado laboral al tener una buena contribución y correlación con las variables de ingresos, en sueldo y primas, así como con la variable que describe cuánto les descuentan mensualmente.
+
+Por la contribución y la correlación, el segundo eje es un candidato a índice para medir los valores de subsidio familiar y de transporte, donde los valores más altos en este eje nos indican valores más bajos en ambos subsidios.
+
+El tercer eje también cuenta con una alta contribución de las variables que describen los subsidios, sin embargo, para este caso el subsidio familiar tiene una correlación positiva, mientras que el de transporte una negativa.
+
+Por su parte, la variable prima de vacaciones es quien más contribuye en el cuarto eje y, aunque no tiene una correlación positiva tan importante, nos sirve para evaluar esta variable.
+
+-   **Variable ilustrativa:**
+
+```{r, warning=FALSE, message=FALSE}
+Gexam3 <- cor(Y$CTLTE, acp$li)
+rownames(Gexam3)<-"CTLTE"
+kable(Gexam3, digits = 3)
+```
+
+::: {.callout-note title="Aclaración"}
+Dependiendo de la calidad de la representación de cada variable en los 4 ejes se decide si se proyectan o no en cada plano factorial. De igual manera con las categorías suplementarias, dependiendo de la calidad de su representación se deciden proyectarlas o no en cada plano factorial.
+:::
+
+## Análisis por planos factoriales:
+
+### Primer plano factorial (Ejes 1 y 3).
+
+-   **Cículo de correlacione de los ejes 1 y 3:**
+
+```{r, warning=FALSE, message=FALSE}
+fig<-fviz_pca_var(acp, axes = c(1,3),
+             col.var = "cos2",
+             gradient.cols=c("darkred",
+                            "darkorange",
+                            "darkgreen"))
+fviz_add(fig, Gexam3, color ="blue", geom="arrow", labelsize=3)
+```
+
+-   **Análisis por máximo nivel educativo y edad:**
+
+```{r, warning=FALSE, message=FALSE}
+#Maximo nivel educativo y edad
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1),main="Maximo nivel educativo y edad")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[1:4,c(1,3)], col = 3, pch = 16)
+text(sup$coor[1:4,c(1,3)], labels = rownames(sup$coor[1:4,c(1,3)]),
+     col = 3, pos = c(2,1,1,1), font = 3)
+points(sup$coor[57:60,c(1,3)], col = 4, pch = 16)
+text(sup$coor[57:60,c(1,3)], labels = rownames(sup$coor[57:60,]),
+     col = 4, pos = c(1,3,1,1), font = 3)
+```
+
+Se puede evidenciar un "orden" en el primer eje en las categorías del máximo nivel educativo, lo que indica que los trabajadores con títulos de posgrado tienden a tener mejores ingresos monetarios y a su vez gastar más dinero. De igual manera, la edad presenta un orden, siendo los adultos mayores los que tienen ingresos y gastos superiores al promedio.
+
+-   **Análisis por región:**
+
+```{r, warning=FALSE, message=FALSE}
+#Region
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="Región")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[5:8,c(1,3)], col = 1:4, pch = 16)
+text(sup$coor[5:8,c(1,3)], labels = rownames(sup$coor[5:8,]),
+     col = 1:4, pos = 1:4, font = 3,)
+```
+
+No hay diferencias significativas entre las diferentes regiones, aunque se puede evidenciar que en la región Andina se tienen mejores sueldos y mayores gastos mientras que la región Pacifico es la que en promedio tiene menores gastos y salarios.
+
+-   **Análisis por cargo que desempeña y lugar de trabajo:**
+
+```{r, warning=FALSE, message=FALSE}
+#Cargo que desempeña y lugar de trabajo
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="Cargo que desempeña y lugar de trabajo")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[9:11,c(1,3)], col = 3, pch = 16)
+text(sup$coor[9:11,c(1,3)], labels = rownames(sup$coor[9:11,]),
+     col = 3, pos = 1, font = 3)
+points(sup$coor[c(16,17,18,19),c(1,3)], col = 4, pch = 16)
+text(sup$coor[c(16,17,18,19),c(1,3)], labels = rownames(sup$coor[c(16,17,18,19),]),
+     col = 4, pos = 1, font = 3)
+```
+
+Como se evidenciaba en el primer ACP los empleados del gobierno tienen mejores sueldos en promedio que los empleados particulares y "OTROS", además tienen primas de servicio y de vacaciones muy superiores al promedio. Las personas que trabajan desde algún tipo de vivienda o en el campo tienen los ingresos y gastos mas bajos.
+
+-   **Análisis por número de trabajadores del lugar de trabajo:**
+
+```{r, warning=FALSE, message=FALSE}
+#Número de trabajadores en la empresa
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="Número de trabajadores en la empresa")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[12:15,c(1,3)], col = "red", pch = 16)
+text(sup$coor[12:15,c(1,3)], labels = rownames(sup$coor[12:15,]),
+     col = "red", pos = 1, font = 3)
+```
+
+Se evidencian comportamientos similares al primer ACP e incluso se logra evidenciar un orden. Entre mas trabajadores tenga una empresa, sus salarios van a ser mas altos al igual que el tiempo que llevan los trabajadores en esta misma, lo que podría indicar la estabilidad que va consiguiendo la empresa a lo largo del tiempo, aumentando de esta manera su numero de trabajadores, sus ingresos y unas mejores condiciones laborales.
+
+-   **Análisis por la variable que responde a la pregunta : ¿Cómo cubriría gastos médicos?**
+
+```{r, warning=FALSE, message=FALSE}
+#Como cubriria gastos medicos
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main = "Como cubriria gastos medicos")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[20:23,c(1,3)], col = 1:4, pch = 16)
+text(sup$coor[20:23,c(1,3)], labels = rownames(sup$coor[20:23,]),
+     col = 1:4, pos = 1:4, font = 3)
+```
+
+Las personas que están afiliadas a una EPS reciben mejores salarios en promedio que quienes están subsidiados o son beneficiarios de alguna afiliación.
+
+-   **Análisis por la variable que indica si está cotizando a un fondo de pensiones:**
+
+```{r, warning=FALSE, message=FALSE}
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Cotiza fondo de pensiones?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[24:26,c(1,3)], col = 3, pch = 16)
+text(sup$coor[24:26,c(1,3)], labels = rownames(sup$coor[24:26,]),
+     col = 3, pos = 1, font = 3)
+```
+
+Con una gran diferencia, las personas que ya están pensionadas (y que siguen trabajando) tienen sueldos muy superiores al promedio, mientras que las personas que no cotizan en un fondo de pensiones tienen salarios muy bajos.
+
+-   **Análisis por varias variables cualitativas:**
+
+```{r, warning=FALSE, message=FALSE}
+#Afiliado a una aseguradora?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Afiliado a una aseguradora?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[27:29,c(1,3)], col = "red", pch = 16)
+text(sup$coor[27:29,c(1,3)], labels = rownames(sup$coor[27:29,]),
+     col = "red", pos = 1, font = 3)
+
+#Afiliado caja de compensación familiar?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Afiliado caja de compensación familiar?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[30:32,c(1,3)], col = "red", pch = 16)
+text(sup$coor[30:32,c(1,3)], labels = rownames(sup$coor[30:32,]),
+     col = "red", pos = 1, font = 3)
+
+#Quiere trabajar mas horas?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Quiere trabajar mas horas?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[35:36,c(1,3)], col = 3, pch = 16)
+text(sup$coor[35:36,c(1,3)], labels = rownames(sup$coor[35:36,]),
+     col = 3, pos = 1, font = 3)
+
+#Quiere cambiar de trabajo?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Quiere cambiar de trabajo?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[37:38,c(1,3)], col = 3, pch = 16)
+text(sup$coor[37:38,c(1,3)], labels = rownames(sup$coor[37:38,]),
+     col = 3, pos = 1, font = 3)
+
+#Esta satisfecho con su trabajo actual?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Esta satisfecho con su trabajo actual?")
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+points(sup$coor[39:40,c(1,3)], col = 3, pch = 16)
+text(sup$coor[39:40,c(1,3)], labels = rownames(sup$coor[39:40,]),
+     col = 3, pos = 1, font = 3)
+
+#Satisfecho con los beneficios y prestaciones?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Satisfecho con los beneficios y prestaciones?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[41:42,c(1,3)], col = 3, pch = 16)
+text(sup$coor[41:42,c(1,3)], labels = rownames(sup$coor[41:42,]),
+     col = 3, pos = 1, font = 3)
+
+#Satisfecho con su jornada laboral?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Satisfecho con su jornada laboral?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[43:44,c(1,3)], col = 3, pch = 16)
+text(sup$coor[43:44,c(1,3)], labels = rownames(sup$coor[43:44,]),
+     col = 3, pos = 1, font = 3)
+
+#Pertenece a una agremiacion sindical?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Pertenece a una agremiacion sindical?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[45:46,c(1,3)], col = 3, pch = 16)
+text(sup$coor[45:46,c(1,3)], labels = rownames(sup$coor[45:46,]),
+     col = 3, pos = 1, font = 3)
+
+#Trabajo estable?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿Trabajo estable?")
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+points(sup$coor[47:48,c(1,3)], col = 3, pch = 16)
+text(sup$coor[47:48,c(1,3)], labels = rownames(sup$coor[47:48,]),
+     col = 3, pos = 1, font = 3)
+
+#Horario y responsabilidades familiares compatibles?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿#Horario y responsabilidades familiares compatibles?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[49:50,c(1,3)], col = 3, pch = 16)
+text(sup$coor[49:50,c(1,3)], labels = rownames(sup$coor[49:50,]),
+     col = 3, pos = 1, font = 3)
+
+#De no tener trabajo de donde obtendria los recursos?
+plot(acp[1:5000,],ex = 1,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-1,2), ylim = c(-1,1.5),main="¿De no tener trabajo de donde obtendria los recursos?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 1,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(2,4:6),c(1,3)], add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+points(sup$coor[51:54,c(1,3)], col = 1:4, pch = 16)
+text(sup$coor[51:54,c(1,3)], labels = rownames(sup$coor[51:54,]),
+     col = 1:4, pos = c(1,2,2,2), font = 3)
+```
+
+Al igual que en el primer ACP, se evidencia que las personas que están afiliados a una aseguradora tienen características (coordenadas) muy similares con las personas que están afiliadas a una caja de compensación familiar, además de quienes no están afiliados a ninguna de estas reciben salarios inferiores al promedio.
+
+Se sabe, que las personas que trabajan un número de horas bastante reducido respecto al promedio quieren trabajar más horas, esto con el fin de tener mejores salarios. Las personas que tienen salarios menores al promedio tienden a querer cambiar de trabajo, no estar satisfechos ni con el trabajo, ni con las prestaciones y servicios y considerar que su trabajo no es estable. Si a esto le sumamos un mayor numero de horas de trabajo, evidenciamos una insatisfacción frente a su jornada laboral además de una incompatibilidad con sus responsabilidades familiares.
+
+Las personas que pertenecen a una agremiación sindical gozan de tener los mejores ingresos tanto en salarios, como en primas de servicio y de vacaciones. Las personas que, de no tener trabajo cubrirían sus gastos con ahorros personales tienen salarios superiores al promedio, lo que indicaría de donde vendría estos mismos ahorros, a diferencia de quienes no tendrían recursos al quedarse sin sus puestos de trabajo que son las personas que menos ganan.
+
+### Segundo plano factorial (Ejes 2 y 3).
+
+-   **Círculo de correlaciones de los ejes 2 y 3:**
+
+```{r, warning=FALSE, message=FALSE}
+fig<-fviz_pca_var(acp, axes = c(2,3),
+             col.var = "cos2",
+             gradient.cols=c("darkred",
+                            "darkorange",
+                            "darkgreen"))
+fviz_add(fig, Gexam3, color ="blue", geom="arrow", labelsize=3)
+```
+
+-   **Análisis por región:**
+
+```{r, warning=FALSE, message=FALSE}
+#Region
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="Región")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[5:8,c(2,3)], col = 1:4, pch = 16)
+text(sup$coor[5:8,c(2,3)], labels = rownames(sup$coor[5:8,]),
+     col = 1:4, pos = 1:4, font = 3,)
+```
+
+Al igual que en primer plano factorial, no hay diferencias significativas entre las diferentes regiones, aunque se puede evidenciar que en la región Andina se tienen mejores subsidios de transporte, mientras que la región Pacifico es la que en promedio tiene los subsidios de transporte mas bajos.
+
+-   **Análisis por número de trabajadores del lugar de trabajo:**
+
+```{r, warning=FALSE, message=FALSE}
+#Numero de empleados en la empresa
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="Número de empleados en la empresa")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[12:15,c(2,3)], col = "red", pch = 16)
+text(sup$coor[12:15,c(2,3)], labels = rownames(sup$coor[12:15,]),
+     col = "red", pos = 1, font = 3)
+```
+
+Se vuelve a evidenciar un orden. Entre mas trabajadores tenga una empresa, hay una mayor cantidad de personas que reciben subsidio de transporte.
+
+-   **Análisis por la variable que responde a la pregunta : ¿Cómo cubriría gastos médicos?:**
+
+```{r, warning=FALSE, message=FALSE}
+#Como cubriria gastos medicos
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main = "Como cubriria gastos medicos")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[20:23,c(2,3)], col = 1:4, pch = 16)
+text(sup$coor[20:23,c(2,3)], labels = rownames(sup$coor[20:23,]),
+     col = 1:4, pos = 1:4, font = 3)
+```
+
+Las personas que están afiliadas a una EPS reciben en promedio mejores subsidios de transporte que quienes están subsidiados o son beneficiarios de alguna afiliación.
+
+-   **Análisis por la variable que indica si está cotizando a un fondo de pensiones:**
+
+```{r, warning=FALSE, message=FALSE}
+#Cotiza fondo de pensiones?
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="¿Cotiza fondo de pensiones?")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[24:26,c(2,3)], col = 3, pch = 16)
+text(sup$coor[24:26,c(2,3)], labels = rownames(sup$coor[24:26,]),
+     col = 3, pos = 1, font = 3)
+```
+
+A diferencia del primer ACP y del análisis del primer plano factorial de este ACP, las personas que ya están pensionadas y siguen trabajando no reciben los subsidios mas altos, esto se debe a que en Colombia se brindan subsidios de transporte a quienes ganen menos de 2 salarios mínimos. Por lo que quienes reciben mejores subsidios son las personas que se encuentran cotizando en un fondo de pensiones.
+
+-   **Análisis por varias variables cualitativas:**
+
+```{r, warning=FALSE, message=FALSE}
+#Afiliado a una aseguradora?
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="¿Afiliado a una aseguradora?")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[27:29,c(2,3)], col = "red", pch = 16)
+text(sup$coor[27:29,c(2,3)], labels = rownames(sup$coor[27:29,]),
+     col = "red", pos = 1, font = 3)
+
+#Afiliado caja de compensación familiar?
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="¿Afiliado caja de compensación familiar?")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[30:32,c(2,3)], col = "red", pch = 16)
+text(sup$coor[30:32,c(2,3)], labels = rownames(sup$coor[30:32,]),
+     col = "red", pos = 1, font = 3)
+
+#Quiere cambiar de trabajo?
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="¿Quiere cambiar de trabajo?")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[37:38,c(2,3)], col = 3, pch = 16)
+text(sup$coor[37:38,c(2,3)], labels = rownames(sup$coor[37:38,]),
+     col = 3, pos = 1, font = 3)
+
+#Esta satisfecho con su trabajo actual?
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="¿Esta satisfecho con su trabajo actual?")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[39:40,c(2,3)], col = 3, pch = 16)
+text(sup$coor[39:40,c(2,3)], labels = rownames(sup$coor[39:40,]),
+     col = 3, pos = 1, font = 3)
+
+#Satisfecho con los beneficios y prestaciones?
+plot(acp[1:5000,],ex = 2,ey = 3, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+     xlim = c(-2,1), ylim = c(-1,1.5),main="¿Satisfecho con los beneficios y prestaciones?")
+#s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax = 2,yax = 3,clabel = 0.7)
+s.arrow(acp$co[c(1,3),c(2,3)], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[41:42,c(2,3)], col = 3, pch = 16)
+text(sup$coor[41:42,c(2,3)], labels = rownames(sup$coor[41:42,]),
+     col = 3, pos = 1, font = 3)
+```
+
+Al igual que en el primer plano factorial, se evidencia que las personas que están afiliados a una aseguradora tienen características (coordenadas) muy similares con las personas que están afiliadas a una caja de compensación familiar, teniendo subsidios superiores al promedio, debido a que en Colombia el subsidio familiar esta a cargo de la caja de compensación familiar a l a que cada trabajador se encuentre afiliado.
+
+Las personas que tienen subsidios menores al promedio tienden a querer cambiar de trabajo, no estar satisfechos ni con el trabajo, ni con las prestaciones y servicios.
+
+### Tercer plano factorial (Ejes 1 y 4).
+
+-   **Círculo de correlaciones de los ejes 1 y 4:**
+
+```{r, warning=FALSE, message=FALSE}
+fig<-fviz_pca_var(acp, axes = c(1,4),
+             col.var = "cos2",
+             gradient.cols=c("darkred",
+                            "darkorange",
+                            "darkgreen"))
+fviz_add(fig, Gexam3, color ="blue", geom="arrow", labelsize=3)
+```
+
+-   **Análisis por sexo al nacer:**
+
+```{r, warning=FALSE, message=FALSE}
+#Sexo
+plot(acp[1:5000,],ex = 1,ey = 4, Tcol = FALSE, ucal = 100, cex.row = 0.2,
+     xlim = c(-1,2), ylim = c(-1,1),main="Sexo al nacer")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax=1,yax=4,clabel = 0.7)
+s.arrow(acp$co[-c(1,3),c(1,4)], add.plot = TRUE, boxes = FALSE)
+points(sup$coor[55:56,c(1,4)], col = "red", pch = 16)
+text(sup$coor[55:56,c(1,4)], labels = rownames(sup$coor[55:56,]),
+     col = "red", pos = 1, font = 3)
+```
+
+Prácticamente no hay diferencia entre los ingresos y salidas monetarias entre hombres y mujeres. En el caso de esta base de datos, por una escasa diferencia las mujeres tienen en promedio mejores salarios.
+
+### Cuarto plano factorial (Ejes 1 y 2).
+
+-   **Cículo de correlaciones de los ejes 1 y 2:**
+
+```{r, warning=FALSE, message=FALSE}
+fig<-fviz_pca_var(acp, axes = c(1,2),
+             col.var = "cos2",
+             gradient.cols=c("darkred",
+                            "darkorange",
+                            "darkgreen"))
+fviz_add(fig, Gexam3, color ="blue", geom="arrow", labelsize=3)
+```
+
+-   **Análisis por varias variables cualitativas:**
+
+```{r, warning=FALSE, message=FALSE}
+#Sexo
+plot(acp[1:5000,],ex = 1,ey = 2, Tcol = FALSE, ucal = 100, cex.row = 0.2,
+     xlim = c(-1,2), ylim = c(-1,1),main="Sexo al nacer")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax=1,yax=2,clabel = 0.7)
+s.arrow(acp$co[1:6,c(1,2)], add.plot = TRUE, boxes = FALSE)
+points(sup$coor[55:56,c(1,2)], col = "red", pch = 16)
+text(sup$coor[55:56,c(1,2)], labels = rownames(sup$coor[55:56,]),
+     col = "red", pos = 1, font = 3)
+
+#Region
+plot(sup$coor[5:8,1:2], col = 6, pch = 16,
+      xlim = c(-1.5,1.5), ylim = c(-1.5,1.5),
+      bty="n", axes = FALSE,,main="Región")
+text(sup$coor[5:8,1:2], labels = rownames(sup$coor[5:8,]),
+      col = 6, pos = 1, font = 3)
+curve(sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+curve(-sqrt(1 - x*x), -1, 1, 1e4, add = TRUE, lty = 3)
+abline(h=0, col="grey"); abline(v=0, col="grey")
+s.arrow(acp$co[1:6,], add.plot = TRUE, boxes = FALSE,         xax = 1, yax = 2,clabel = 0.7)
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,clabel = 0.7)
+
+#Agremiacion sindical
+plot(acp[1:5000,],ex = 1,ey = 2, Tcol = FALSE, ucal = 100, cex.row = 0.000001,
+      xlim = c(-2,2), ylim = c(-1,1.5),main="¿Pertenece a una agremiacion sindical?")
+s.arrow(Gexam3, add.plot = TRUE, boxes = FALSE,xax=1,yax=2,clabel = 0.7)
+s.arrow(acp$co[1:6,], add.plot = TRUE, boxes = FALSE,clabel = 1)
+points(sup$coor[45:46,c(1,3)], col = 3, pch = 16)
+text(sup$coor[45:46,c(1,3)], labels = rownames(sup$coor[45:46,]),
+      col = 3, pos = 1, font = 3)
+```
+
+No se observa mucha caracterización por parte de las regiones, sin embargo, da la sensación de que en la región Andina se presentan los valores más altos de primas e ingresos en contraste a la región Pacífica. Por otro lado, la diferencia entre sexos es practicamente indetectable.
+
+Como se mencinó anteriormente, se observa una tendencia a valores altos en ingresos y primas en las personas que pertenecen a una agremiación sindical.
+
+# Conclusiones
+
+1.  El perfil del empleado del gobierno es uno de los más cómodos en el mercado laboral: en primer lugar, los empleados del gobierno suelen durar mucho más en su puesto de trabajo y tienden a trabajar una menor cantidad de horas con respecto a los empleados particulares e independientes, se caracterizan por tener un buen sueldo y, adicionalmente, son los que más altos valores de primas de servicios y vacaciones reciben.
+
+2.  Las personas pensionadas son las más estables económicamente: como gran conclusión del segundo análisis realizado, se observa que las personas pensionadas tienen valores altos de ganancias en el último mes, además de ello, se vio con claridad como las personas pensionadas son las que suelen trabajar una menor cantidad de horas y contar con una mayor estabilidad, esto pues se caracterizan por llevar un tiempo considerable en su actual empresa.
+
+3.  Los posgrados otorgan una mejor situación económica: nuestro análisis arroja que una persona que haya obtenido un posgrado tiende a tener una mayor estabilidad, pues una gran parte de los encuestados con posgrado llevan un buen tiempo en su empleo actual, además de esto, comparados con los encuestados con niveles educativos menores, trabajan en promedio muchas horas menos, reciben ganancias más altas, así como buenos valores con respecto a las primas de servicio y vacaciones.
+
+4.  En las empresas grandes se encuentran mejores condiciones laborales: las personas encuestadas que trabajan con 100 o más personas se caracterizan por tener mayores ingresos, una continuidad importante en el tiempo en su trabajo actual y facilidades para recibir subsidios, en especial el de transporte, con respecto a las personas que trabajan en entidades con un número de empleados bajo.
+
+5.  La percepción general es que las mejores condiciones laborales van de la mano con un sueldo integral: aunque parezca una afirmación bastante obvia, constatamos con nuestro análisis como las personas afiliadas a un ARP, EPS, cotizan a una caja de compensación y reciben subsidio de transporte, suelen ser las que en promedio tienden a tener buenos sueldos y más a gusto se encuentran con su trabajo actual y sus condiciones.
+
+6.  Existe una alta proporción de inconformidad con respecto a las condiciones laborales en la población colombiana: en promedio las personas que quieren trabajar más horas, cambiar de trabajo, no están satisfechas con su trabajo ni su jornada laboral ni los beneficios que reciben son personas cuyos valores de primas, subsidios e ingresos son muy bajos; como nuestros datos cuentan con una proporción bastante alta de ceros en estas variables concluimos que una buena parte de la población colombiana se siente insatisfecha con su situación laboral y económica.
+
+7.  Similitud entre regiones: en general se observa que no hay diferencias significativas entre las regiones con respecto a las condiciones laborales, pareciese que la región Andina tiene las mejores condiciones laborales además de destacar por tener los mayores tiempos de desplazamiento hacía el lugar de trabajo acompañado con valores de subsidio de transporte un poco más altos que en otras regiones, y se podría decir que las peores condiciones se dan en la región Pacífica, sin embargo no es una diferencia muy grande como se refleja en las variables que se refieren a ingresos y salidas monetarias.
+
+8.  Los adultos mayores destacan entre la población ocupada con contrato: las personas con 60 o más años se caracterizan por trabajar en menor medida, suelen durar bastante en sus lugares de trabajo, resaltan sus ingresos y los valores altos de sus primas de servicios y vacaciones.
+
+9.  Las ventajas de pertenecer a una agremiación sindical: las personas que pertenecen a una agremiación sindical se distinguen por tener una continuidad bastante prolongada en su empleo actual, así como por unos muy buenos valores en cuanto a ingresos y a las primas de servicios y vacaciones se refiere.
+
+10. Diferencias mínimas entre sexos: no se observan diferencias muy significativas entre sexos, sin embargo, vale la pena resaltar que nuestro ACP nos dice que el sexo femenino trabaja un poco más de horas a la semana y recibe un poco más en subsidios, especialmente de transporte.

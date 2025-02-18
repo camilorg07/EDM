@@ -1,0 +1,614 @@
+---
+title: "Clustering"
+format:
+  html:
+    toc: True
+    toc-title: "Tabla de contenidos"
+    toc-depth: 3  # Profundidad de los encabezados a enumerar
+    number-sections: true  # Activa la numeración de secciones
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Ver código"
+    link-external-newwindow: true
+    css: styles.css
+editor_options:
+  chunk_output_type: console
+---
+
+# ACM
+
+Para realizar el agrupamiento se realizó un nuevo ACM con las 12 variables que fueron activas en los ACM presentados anteriormente.
+
+Las variables activas para este ACM son:
+
+1.  **SEXO:** Sexo al nacer.
+
+    Categorías:
+
+    -   \(M\) Masculino.
+
+    -   \(F\) Femenino.
+
+2.  **Edad:**
+
+    Categorías:
+
+    -   (18A38) Adultos entre 18 y 38 años.
+    -   (39A59) Adultos entre 39 y 59 años.
+    -   (AM) Adulto mayor.
+
+3.  **REGION:**
+
+    Categorías:
+
+    -   ANDI) Región Andina.
+    -   (CARI) Región Caribe.
+    -   (PACI) Región del Pacífico.
+    -   (OTRA) Región de la Amazonía, región de la Orinoquía y región insular.
+
+4.  **MNEA:** Variable mayor nivel educativo alcanzado.
+
+    Categorías:
+
+    -   (MB) Menor que bachiller: agrupa los niveles “Ninguno”, “Básica primaria” y “Básica secundaria”.
+    -   \(B\) Bachiller: agrupa los niveles “Bachillerato clásico” y “Bachillerato técnico”.
+    -   (NPTT) Normalista, pregrado, técnico o tecnólogo: agrupa los niveles “Normalista”, “Universitaria”, “Técnica profesional” y “Tecnológica”.
+    -   \(P\) Posgrado: agrupa los niveles “Especialización”, “Maestría” y “Doctorado”.
+
+5.  **EETE:** ¿En este trabajo…es?
+
+    Categorías:
+
+    -   (EP) Empleado de empresa partícular.
+    -   (EG) Empleado del gobierno.
+    -   (OTRO) Otro: agrupa “Empleado doméstico”, “Patrón o empleador”, “Trabajador familiar sin remuneración”, “Trabajador sin remuneración en empresas o negocios de otros hogares”, “Jornalero o peón”, “Otro”.
+
+6.  **PTET:** ¿Cuántas personas en total tiene la empresa, negocia, industria, oficina, firma, finca o sitio donde trabaja?
+
+    Categorías:
+
+    -   (TS) Trabaja solo.
+    -   (2-19) De 2 a 19 personas.
+    -   (20-100) De 20 a 100 personas.
+    -   (M100) Más de 100 personas.
+
+7.  **DRPST:**¿Dónde realiza principalmente su trabajo?
+
+    Categorías:
+
+    -   (EVOV) En esta u otras viviendas.
+    -   (LOF) Local fijo, oficina, fábrica, etc.
+    -   (CA) Campo o área rural.
+    -   (OTRO) Otro: agrupa las categorías “En kiosco”, “En un vehículo”, “De puerta en puerta”, “Sitio al descubierto en la calle”, “En una obra en construcción”, “En una obra o cantera” y “Otro”.
+
+8.  **HTYRSC:** ¿Su horario de trabajo y sus responsabilidades familiares son compatibles?
+
+    -   (SI) Sí son compatibles.
+    -   (NO) No son compatibles.
+
+9.  **ECFP:** ¿Está cotizando actualmente a un fondo de pensiones?
+
+    Categorías:
+
+    -   (SI) Sí está cotizando a un fondo de pensiones.
+    -   (NO) No está cotizando a un fondo de pensiones.
+    -   (YEP) Ya es pensionado.
+
+10. **CCCM:** En caso de enfermedad, ¿Cómo cubriría los costos médicos y medicamentos?
+
+    Categorías:
+
+    -   (AEPS) Afiliado a un régimen contributivo de salud (EPS).
+    -   (ARS) Afiliado a un régimen subsidiado de salud.
+    -   (BA) Beneficiario de un afiliado. 
+    -   (OTRO) Otro: “Con ahorros personales”, “Con ayudas de los hijos o familiares”, “Con otro tipo de seguro o cubrimiento”, “Pidiendo dinero prestado”, “Vendería su vivienda o bienes del hogar”, “Empeñaría bienes del hogar”, “No lo ha considerado”, “No tiene recursos”, “Otro”.
+
+11. **EAARP:** ¿Está afiliado individualmente o por una empresa a una aseguradora de riesgos profesionales (arp)?
+
+    Categorías:
+
+    -   (SI) Sí está afiliado a una ARP.
+    -   (NO) No está afiliado a una ARP.
+
+12. **EACC:** ¿Está afiliado a una caja de compensasión familiar?
+
+    Categorías:
+
+    -   (SI) Sí está afiliado a una caja de compensación familiar.
+    -   (SI) No está afiliado a una caja de compensación familiar.
+
+```{r, warning=FALSE, message=FALSE}
+library(readr)
+library(FactoClass)
+library(plotly)
+library(knitr)
+library(skimr)
+library(sqldf)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(DT)
+library(kableExtra)
+library(FactoMineR)
+library(factoextra)
+library(gridExtra)
+library(ggpubr)
+
+
+Ocupados<-read_delim("bfinal.txt", delim="@")
+Ocupados=Ocupados[,-c(3,33:37)]
+Ocupados <- within(Ocupados, {
+  EDAD <- ifelse(EDAD <= 17, "ME",
+                 ifelse(EDAD <= 38, "18A38",
+                        ifelse(EDAD <= 59, "39A59",
+                               ifelse(EDAD >= 60, "AM", EDAD))))})
+
+Ocupados=sqldf("select * from Ocupados where EAARP!='NSNI' and EACC!='NSNI' and EDAD!='ME'")
+
+acm=MCA(Ocupados,ncp=12,quanti.sup=c(21,22,23,24,26,27,28,29,30,31),quali.sup=c(10,11,12,13,14,15,16,17,19),graph=FALSE)
+
+res.MCA<-MCA(Ocupados,ncp=12,quanti.sup=c(21,22,23,24,26,27,28,29,30,31),quali.sup=c(10,11,12,13,14,15,16,17,19),graph=FALSE)
+
+set.seed(123)
+
+res.HCPC<-HCPC(res.MCA,nb.clust=7,kk=1000,consol=FALSE,graph=FALSE)
+
+P=as.data.frame(rownames(res.MCA[["var"]][["v.test"]])) #Activas
+S=as.data.frame(rownames(res.MCA[["quali.sup"]][["v.test"]]))#Suplementarias
+```
+
+Histogramas de la inercia:
+
+```{r, warning=FALSE, message=FALSE}
+fviz_screeplot(acm, addlabels = TRUE, ylim = c(0, 30))
+
+s <- 12
+l <- acm$eig[acm$eig[,1] > 1/s, 1]
+tau <- ( s / (s - 1) )^2 * ( l - (1/s) )^2
+ptau <- tau / sum( tau ) * 100
+barplot(ptau, col="darkred", ylim = c(0,100))+text(ptau, labels = paste(round(ptau,3),"%"), pos=3)
+```
+
+-   Eje 1:
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(acm, choice = "var", axes = 1),fviz_cos2(acm, choice="var",axes=1), ncol=2, nrow=1)
+```
+
+-   Eje 2:
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(acm, choice = "var", axes = 2),fviz_cos2(acm, choice="var",axes=2), ncol=2, nrow=1)
+```
+
+-   Eje 3:
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(acm, choice = "var", axes = 3),fviz_cos2(acm, choice="var",axes=3), ncol=2, nrow=1)
+```
+
+-   Eje 4:
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(acm, choice = "var", axes = 4),fviz_cos2(acm, choice="var",axes=4), ncol=2, nrow=1)
+```
+
+-   Eje 8:
+
+```{r, warning=FALSE, message=FALSE}
+ggarrange(fviz_contrib(acm, choice = "var", axes = 8),fviz_cos2(acm, choice="var",axes=8), ncol=2, nrow=1)
+```
+
+Gráficos de los planos factoriales:
+
+```{r, fig.width=10, fig.height=7, fig.align="center", warning=FALSE, message=FALSE}
+a<-fviz_mca_var(res.MCA, col.ind="white", geom.ind = "point", axes = c(1,4), select.ind=list(names=which(res.HCPC$data.clust[,32] == 1)), col.var="cos2",
+                select.var=list(name=c(P[c(4,9,14,25,20,28,10,18,35,5,1,32,33,19,6,30),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                title="Plano factorial para la clase 1")
+
+
+a1<-fviz_mca_var(res.MCA, col.ind="white", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 2)), col.var="cos2",
+                 select.var=list(name=c(P[c(20,28,30,10,3,14,13,18,35,5,1,32,33,19,6,25),]))
+                 ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                 title="Plano factorial para la clase 2")
+ggarrange(a,a1, ncol=2, nrow=1)
+
+```
+
+```{r, fig.width=10, fig.height=7, fig.align="center", warning=FALSE, message=FALSE}
+a<-fviz_mca_var(res.MCA, col.ind="white", geom.ind = "point", axes = c(1,3), select.ind=list(names=which(res.HCPC$data.clust[,32] == 3)), col.var="cos2",
+                select.var=list(name=c(P[c(26,37,9,4,20,14,32),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                title="Plano factorial para la clase 3")
+
+a1<-fviz_mca_var(res.MCA, col.ind="white", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 4)), col.var="cos2",
+                 select.var=list(name=c(P[c(23,24,27,29,12,2,35,33,31,16,10,7,1,8),]))
+                 ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                 title="Plano factorial para la clase 4")
+ggarrange(a,a1, ncol=2, nrow=1)
+
+```
+
+```{r, fig.width=10, fig.height=7, fig.align="center", warning=FALSE, message=FALSE}
+a<-fviz_mca_biplot(res.MCA, col.ind="white", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 5)), col.var="cos2",
+                   select.var=list(name=c(P[c(21,27,29,24,12,22,10,2,19,1,8,35,33,31,7,6),]))
+                   ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                   title = "Plano factorial para la clase 5")
+
+a1<-fviz_mca_biplot(res.MCA, col.ind="white", geom.ind = "point", axes = c(1,3), select.ind=list(names=which(res.HCPC$data.clust[,32] == 6)), col.var="cos2",
+                    select.var=list(name=c(P[c(16,11,21,24,27,29,2,12,33,37,5,31),]))
+                    ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                    title = "Plano factorial para la clase 6")
+ggarrange(a,a1, ncol=2, nrow=1)
+
+```
+
+```{r, fig.width=10, fig.height=7, fig.align="center", warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="white", geom.ind = "point", axes = c(1,2), select.ind=list(names=which(res.HCPC$data.clust[,32] == 7)), col.var="cos2",
+                select.var=list(name=c(P[c(17,11,15,27,24,34,21,29,2,36,6,8,22,37),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                title = "Plano factorial para la clase 7")
+```
+
+# Caracterización de las clases de la poblacion ocupada
+
+Las clases se describen según las 12 variables cualitativas activas del analisis de correspondencias multiples. Luego se explora la asociación con las demas variables cualitativas y cuantitativas que se tomaron como ilustrativas. A continuación se hace un resumen de la descripción de cada una de las clases, incluyendo el número de individuos y el porcentaje correspondiente.
+
+-   Histograma de corte
+
+```{r, warning=FALSE, message=FALSE}
+plot.HCPC(res.HCPC, choice = "bar")
+```
+
+-   Dendograma
+
+```{r, warning=FALSE, message=FALSE}
+plot.HCPC(res.HCPC, choice = "3D.map", ind.names = FALSE, draw.tree = FALSE)
+
+plot.HCPC(res.HCPC, choice = "tree")
+```
+
+-   Gráfico de los grupos
+
+```{r, warning=FALSE, message=FALSE}
+fviz_mca_ind(res.MCA,axes = c(1,2), 
+             geom.ind = "point",         
+             col.ind = res.HCPC$data.clust[,32],  
+             palette = "jco",            
+             label = TRUE,              
+             ggtheme = theme_minimal(),  
+             title = "MCA Plot")
+```
+
+## Clase 1
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+
+fviz_mca_biplot(res.MCA, col.ind="blue", geom.ind = "point", axes = c(1,4), select.ind=list(names=which(res.HCPC$data.clust[,32] == 1)), col.var="cos2",
+                select.var=list(name=c(P[c(4,9,14,25,20,28,10,18,35,5,1,32,33,19,6,30),],S[c(14,10,18,5,16,8),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+
+fviz_mca_biplot(res.MCA, col.ind="blue", geom.ind = "point", axes = c(1,4), select.ind=list(names=which(res.HCPC$data.clust[,32] == 1)), col.var="cos2",
+                select.var=list(name=c(P[c(4,9,14,25,20,28,10,18,35,5,1,32,33,19,6,30),],S[c(12,20,1,3),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+La clase #1 que representa el 9.77% de los individuos, en general, presenta a las personas con las mejores condiciones laborales. La gran mayoría de los individuos de esta clase, tienen acceso y/o la posibilidad de afiliarse a una EPS (100%), cotizar en un fondo de pensiones (100%), una ARP (97%), una caja de compensación familiar (82%), además de estar satisfecho con las prestaciones (90%), su jornada laboral (92%) y en general con su trabajo (95%), adicionalmente, cuenta con valores muy superiores al promedio global en cuanto a los ingresos monetarios, incluyendo, los salarios y las primas (servicio y transporte) a lo que sumado con un mayor tiempo trabajando en la empresa respecto al global y valores más bajos en cuanto a las horas de trabajo en la semana, indican la estabilidad que han adquirido en sus empleos a través de los años, por lo que es de esperarse que en su mayoría los individuos de esta clase ronden entre los 39 y 59 años (63%). En cuanto a las características sociodemográficas y las características propias del empleo vemos que la mayoría de los individuos de esta clase son: Empleados del gobierno (72%), trabajadores de oficina (88%) personas que pertenecen a una empresa con más de 100 trabajadores (88%), hombres (56%) y personas con posgrado (54%).
+
+-   Caracterización por categorías:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["category"]][["1"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3,5)]
+# Filtrar las filas donde la columna 'test' de 'v' sea mayor que 2
+a <- a %>%
+  filter(v.test > 2)
+
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+```
+
+-   Caracterización por variables cuantitativas:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["quanti"]][["1"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3)]
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+
+```
+
+## Clase 2
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="yellow", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 2)), col.var="cos2",
+                select.var=list(name=c(P[c(20,28,30,10,3,14,13,18,35,5,1,32,33,19,6,25),],S[c(16,5,3,13),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="yellow", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 2)), col.var="cos2",
+                select.var=list(name=c(P[c(20,28,30,10,3,14,13,18,35,5,1,32,33,19,6,25),],S[c(8,12,20,2),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+La clase #2 que representa el 54.63% de los individuos, en general, presenta unas condiciones laborales aceptables, o en términos más generales, lo básico y necesario que debería tener y recibir cada trabajador. La gran mayoría de los individuos de esta clase, tienen acceso y/o la posibilidad de afiliarse a una EPS (100%), cotizar en un fondo de pensiones (99%), una ARP (98%), una caja de compensación familiar (81%), aunque, no pertenecen a una agremiación sindical (96%). Además estan satisfechos con las prestaciones (88%), su jornada laboral (91%) y en general con su trabajo (93%), sus ingresos monetarios no son tan altos como los de la clase #1, por lo que se destacara en los ingresos referentes a los subsidios (familiar y transporte), a lo que sumado con un tiempo escasamente mayor al global trabajando en la empresa y valores más altos en cuantos a las horas de trabajo en la semana, refuerzan la idea del punto anterior, acerca de la estabilidad que se adquiere a través del tiempo que en este caso no es poco, pero según las características, no es “suficiente” para tener una mayor estabilidad laboral, por esto mismo, es de esperarse que en su mayoría los individuos de esta clase ronden entre los 18 y 38 años (58%) o que hayan tenido un antiguo empleo (76%). En cuanto a las características sociodemográficas y las características propias del empleo vemos que la mayoría de los individuos de esta clase son: Empleados particulares (95%), trabajadores de oficina (80%) personas que pertenecen a una empresa con más de 20 trabajadores (78%), mujeres (57%), personas que por lo menos tienen un título de bachiller académico (54%) y de la región Andina (54%).
+
+-   Caracterización por categorías:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["category"]][["2"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3,5)]
+# Filtrar las filas donde la columna 'test' de 'v' sea mayor que 2
+a <- a %>%
+  filter(v.test > 2)
+
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+
+```
+
+-   Caracterización por variables cuantitativas:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["quanti"]][["2"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3)]
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+
+```
+
+## Clase 3
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="darkgray", geom.ind = "point", axes = c(1,3), select.ind=list(names=which(res.HCPC$data.clust[,32] == 3)), col.var="cos2",
+                select.var=list(name=c(P[c(26,37,9,4,20,14,32),], S[c(16,8,14,18),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="darkgray", geom.ind = "point", axes = c(1,3), select.ind=list(names=which(res.HCPC$data.clust[,32] == 3)), col.var="cos2",
+                select.var=list(name=c(P[c(26,37,9,4,20,14,32),], S[c(10,12,20),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+La clase #3 que representa el 1.14% de los individuos, hace referencia a la población que ya se encuentra pensionada, por lo que su gran mayoría, serán adultos mayores (73%) y presentan unas condiciones laborales muy buenas. La gran mayoría de los individuos de esta clase, tienen el acceso y/o la posibilidad de afiliarse a una EPS (98%), además de estar satisfechos con las prestaciones (89%), su jornada laboral (94%) y en general con su trabajo (94%), al ya estar pensionados, se destacan, por encima del global los ingresos monetarios referentes al salario y las primas (servicio y vacaciones), sumados al tiempo que llevan en la empresa. Por otro lado, presentan valores más bajos respecto al global frente al número de horas que trabajan en la semana.
+
+-   Caracterización por categorías:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["category"]][["3"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3,5)]
+# Filtrar las filas donde la columna 'test' de 'v' sea mayor que 2
+a <- a %>%
+  filter(v.test > 2)
+
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+```
+
+-   Caracterización por variables cuantitativas:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["quanti"]][["3"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3)]
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+```
+
+## Clase 4
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="pink3", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 4)), col.var="cos2",
+                select.var=list(name=c(P[c(23,24,27,29,12,2,35,33,31,16,10,7,1,8),],S[c(9,6,11,7,19,13),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="pink3", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 4)), col.var="cos2",
+                select.var=list(name=c(P[c(23,24,27,29,12,2,35,33,31,16,10,7,1,8),],S[c(15,4,2),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+La clase #4 que representa el 4.54% de los individuos, en general, representa a quienes no pueden cubrir sus gastos médicos a través de un régimen de salud, ya sea por medio de afiliación, subsidio o como beneficiario. Por esto, quienes no puedan cubrir sus gastos médicos de esta manera, en su mayoría, no cotizarán en un fondo de pensiones (88.2%), no estarán afiliados a una ARP (88.2%), ni a una caja de compensación familiar (90.8%), ni a una agremiación sindical (97.9). En cuanto a las características sociodemográficas vemos que la mayoría de los individuos de esta clase son: Empleados particulares (87.2%), personas que trabajan en una empresa con 2-19 trabajadores (83.9%), personas con títulos de bachiller o sin estos (81.7%), personas entre los 18 y 38 años (70.3%), personas que ya habían tenido un anterior empleo (78.3%) y finalmente, mujeres (67%).
+
+-   Caracterización por categorías:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["category"]][["4"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3,5)]
+# Filtrar las filas donde la columna 'test' de 'v' sea mayor que 2
+a <- a %>%
+  filter(v.test > 2)
+
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+
+```
+
+-   Caracterización por variables continuas:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["quanti"]][["4"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3)]
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+
+```
+
+## Clase 5
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="lightblue", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 5)), col.var="cos2",
+                select.var=list(name=c(P[c(21,27,29,24,12,22,10,2,19,1,8,35,33,31,7,6),],S[c(9,6,11,7,19,13),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="lightblue", geom.ind = "point", axes = c(1,8), select.ind=list(names=which(res.HCPC$data.clust[,32] == 5)), col.var="cos2",
+                select.var=list(name=c(P[c(21,27,29,24,12,22,10,2,19,1,8,35,33,31,7,6),],S[c(15,4,17,1),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+La clase #5 que representa el 20.66% de los individuos, en general está compuesta por personas con no muy buenas prestaciones, menos ganancias, subsidios y primas, menos estabilidad y menos tiempo de desplazamiento. La gran parte de los individuos de esta clase no están afiliados a una agremiación sindical ni a una caja de compensación (99%), tampoco cotizan a una ARP ni están afiliados a una ARP en una alta proporción (97%). Existe una muy baja proporción de afiliados a una EPS ya que más del 90% de la clase cubriría sus costos médicos recurriendo a un régimen subsidiado de salud o siendo beneficiarios de un afiliado a EPS. Es válido también resaltar que para más del 70% de las personas de esta clase encontrarse en una situación de desempleo los llevaría a solicitar ayudas a familiares para obtener recurso o directamente no tendrían de donde obtener recursos. La clase presenta bajos valores de prima de transporte y de tiempo de desplazamiento, lo cual podría relacionarse con que cerca del 60% pertenecen a regiones como la Pacífica, Caribe, Orinoquía, Amazonía e Insular. También sus valores de salario y descuentos son bastante inferiores con respecto al global, así como lo son el de las primas de servicio y vacaciones y el subsidio familiar. Esta clase también se destaca por presentar personas con una menor estabilidad laboral y por trabajar menos horas por semana, con respecto al global. Es consecuente con lo mencionado anteriormente que en este grupo haya una mayor proporción de personas insatisfechas con su situación laboral con respecto a la media, sin embargo, la proporción dentro de la clase no es tan alta. Por ejemplo, menos de la mitad y del 40% de las personas de la clase no están satisfechos con los beneficios y prestaciones que recibe y no consideran que su trabajo actual sea estable, respectivamente. Menos de un cuarto de la clase no está satisfecha ni con su jornada laboral ni con su trabajo actual, adicionalmente, más del 10% consideran que su horario de trabajo y responsabilidades familiares no son compatibles y menos del 10% quieren trabajar más horas. También se destaca de esta clase que está compuesta en más del 90% por trabajadores de empresa particular y adicionalmente a esto, por empleados de empresas pequeñas, en particular aquellas que cuentan con entre 2 y 19 trabajadores. Respecto a las características sociodemográficas se destaca que más del 80% de la clase la configuran personas que como máximo alcanzaron el bachiller, para la edad más del 60% son adultos jóvenes de 18 a 38 años y también destaca la importante proporción de adultos mayores.
+
+-   Caracterización por categorías:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["category"]][["5"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3,5)]
+# Filtrar las filas donde la columna 'test' de 'v' sea mayor que 2
+a <- a %>%
+  filter(v.test > 2)
+
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+```
+
+-   Caracterización por variables cuantitativas:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["quanti"]][["5"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3)]
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+```
+
+## Clase 6
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="aquamarine4", geom.ind = "point", axes = c(1,3), select.ind=list(names=which(res.HCPC$data.clust[,32] == 6)), col.var="cos2",
+                select.var=list(name=c(P[c(16,11,21,24,27,29,2,12,33,37,5,31),],S[c(15,19,7,6),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="aquamarine4", geom.ind = "point", axes = c(1,3), select.ind=list(names=which(res.HCPC$data.clust[,32] == 6)), col.var="cos2",
+                select.var=list(name=c(P[c(16,11,21,24,27,29,2,12,33,37,5,31),],S[c(9,11,13),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+La clase #6 que representa el 4% de los individuos, es una buena síntesis de las condiciones laborales de las personas que laboran en el campo o área rural. Prácticamente toda la clase está compuesta por personas que laboran en el campo o áreas rurales y que no están afiliadas a una caja de compensación. Adicionalmente, más del 97% de los individuos de la clase no están afiliados a una agremiación sindical ni a una ARP y tampoco cotizan a un fondo de pensiones. Más del 90% de la clase son mujeres, trabajan en grupos de 2 a 19 personas y cubren sus costos médicos y medicamentos mediante la afiliación a un régimen subsidiado de salud. Adicionalmente, esta clase presenta valores bastante más bajos en salarios, descuentos y subsidios de transporte que el global. En menor magnitud, ocurre algo similar con las primas, el subsidio familiar, la estabilidad laboral y el tiempo de desplazamiento. Lógicamente, esto se refleja en la importante proporción de personas que no están satisfechas con los beneficios y prestaciones que reciben ni con su trabajo ni jornada laboral actual, que no consideran que su trabajo actual es estable y desean cambiar de trabajo. Sin embargo, ninguna de las categorías anteriores caracteriza a la clase en más de un 42%. Cerca del 80% de los individuos no trabajan ni para empresas particulares ni para gubernamentales y su máximo nivel educativo es menor que bachiller. En casi un 60% pertenecen a la región Andina y con respecto a la edad, se destacan los adultos mayores.
+
+-   Caracterización por categorías:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["category"]][["6"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3,5)]
+# Filtrar las filas donde la columna 'test' de 'v' sea mayor que 2
+a <- a %>%
+  filter(v.test > 2)
+
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+```
+
+-   Caracterización por variables cuantitativas:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["quanti"]][["6"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3)]
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+```
+
+## Clase 7
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="chocolate4", geom.ind = "point", axes = c(1,2), select.ind=list(names=which(res.HCPC$data.clust[,32] == 7)), col.var="cos2",
+                select.var=list(name=c(P[c(17,11,15,27,24,34,21,29,2,36,6,8,22,37),],S[c(9,13,7,11,19,1),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+```{r, fig.width=11, fig.height=7, fig.align="center",warning=FALSE, message=FALSE}
+fviz_mca_biplot(res.MCA, col.ind="chocolate4", geom.ind = "point", axes = c(1,2), select.ind=list(names=which(res.HCPC$data.clust[,32] == 7)), col.var="cos2",
+                select.var=list(name=c(P[c(17,11,15,27,24,34,21,29,2,36,6,8,22,37),],S[c(17,15,6,4),]))
+                ,gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+La clase #7 que representa al 5.25% de los individuos, es una buena síntesis de las personas independientes. Prácticamente toda la clase la conforman personas que trabajan solas, cuyo lugar de trabajo es una vivienda, no afiliados a una agremiación sindical, que no trabajan ni para una empresa particular ni para una empresa gubernamental y del género masculino. El 92% de los individuos no están afiliados a una caja de compensación y cerca del 90% de la clase no cotizan a un fondo de pensiones y no están afiliados a una ARP. Más del 80% de esta clase cubre sus costos médicos mediante una afiliación a un régimen subsidiado de salud o siendo beneficiados de un afiliado a EPS y, cerca del 70% de la clase la conforman personas mayores de 38 años. Al tener tanta proporción de personas independientes tiene sentido los valores bajos en las horas trabajadas a la semana. Adicionalmente, la clase se caracteriza por valores bajos en ingresos y descuentos, también como en subsidios y primas y una menor estabilidad laboral. Con esto en cuenta, es lógico que se destaquen las personas que no están satisfechas ni con su trabajo, ni con la jornada laboral, que desean cambiar su trabajo y trabajar más horas; aunque es importante aclarar que en ninguna de estas 4 categorías presenta una proporción mayor al 30% dentro de la clase. En un caso de desempleo, el 75% de los individuos de la clase recurriría a ayudas de familiares para obtener recursos o directamente no tendrían recursos. Respecto a las características sociodemográficas, más del 56% de los individuos no superaron el bachiller en el ámbito educativo y pertenecen a las regiones Pacífica y Caribe. También se destacan las personas sin experiencia laboral, representando así un 30% de la clase.
+
+-   Caracterización por categorías:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["category"]][["7"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3,5)]
+# Filtrar las filas donde la columna 'test' de 'v' sea mayor que 2
+a <- a %>%
+  filter(v.test > 2)
+
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+```
+
+-   Caracterización por variables cuantitativas:
+
+```{r, warning=FALSE, message=FALSE}
+a<-res.HCPC[["desc.var"]]
+a<-a[["quanti"]][["7"]]
+a<-as.data.frame(a)
+a<-a[,c(1:3)]
+kable(a)%>%
+   kable_styling(full_width = F,htmltable_class = "kable") %>%
+  scroll_box(width="800px", height="300px")
+
+```
+
+# Conclusiones
+
+1.  La primera clase, representa a los trabajadores con las mejores condiciones laborales, con altos ingresos, estabilidad en su empleo, y mayoritariamente adultos entre 39 y 59 años, empleados en el sector público y con niveles educativos elevados, como posgrado. Son mayormente hombres y disfrutan de jornadas laborales razonables y gran satisfacción laboral.
+
+2.  La segunda clase, representa a trabajadores jóvenes (18-38 años) con condiciones laborales básicas aceptables, acceso a seguridad social y prestaciones, pero con ingresos moderados, mayor estabilidad laboral que otros grupos y una tendencia a empleos en empresas grandes, con predominio de mujeres y educación secundaria.
+
+3.  La tercera clase, está compuesto por los pensionados, en su mayoría adultos mayores, con muy buenas condiciones laborales. Aunque ya no están trabajando activamente, destacan por tener ingresos altos y gran satisfacción con su situación actual.
+
+4.  La cuarta clase, agrupa a trabajadores que no tienen acceso a un régimen de salud, lo que se refleja en la falta de afiliación a fondos de pensiones, ARP o cajas de compensación. Son mayoritariamente mujeres, personas entre 18 y 38 años, con niveles educativos de bachillerato o inferiores. A pesar de su experiencia laboral, les ha sido difícil alcanzar una mayor estabilidad en términos de ingresos y así mismo salud social y satisfacción laboral, lo que podría estar relacionado con una desigualdad de género y la importancia de un nivel académico superior al bachillerato.
+
+5.  La quinta representa un grupo vulnerable dentro del panorama laboral, caracterizado por bajos ingresos, escasa afiliación a sistemas de seguridad social y una notable inestabilidad laboral. A pesar de la insatisfacción con sus condiciones de trabajo, menos de la mitad se siente descontenta con su situación actual. La mayoría de sus integrantes son jóvenes con escasa formación académica y trabajan en empresas pequeñas. Se observa una clara relación entre la juventud y bajo nivel educativo con la dificultad para acceder a mejores prestaciones.
+
+6.  La sexta clase refleja la precariedad de las condiciones laborales en el ámbito rural, con una altísima mayoría de mujeres que carecen de afiliación a sistemas de seguridad social y trabajan en grupos pequeños. La falta de acceso a beneficios laborales y la insatisfacción con sus condiciones de trabajo son evidentes, aunque ninguna de estas características afecta a más del 42% de la población de esta clase. La predominancia de trabajadores con un nivel educativo bajo y la concentración en la región Andina nos dan indicios de falencias claras en el sector rural y la necesidad de promover iniciativas que garanticen el debido acceso a servicios de salud y educación.
+
+7.  La septima clase representa a un grupo significativo de trabajadores independientes que enfrentan serias limitaciones en términos de estabilidad laboral y acceso a beneficios sociales. Compuesta mayoritariamente por hombres mayores de 38 años, esta clase destaca por su escasa afiliación a sistemas de seguridad social, lo que se traduce en ingresos bajos y una notable insatisfacción con sus condiciones laborales. A pesar de que no más del 30% de sus miembros se siente insatisfecho o desea cambiar de trabajo, la dependencia de ayudas familiares en caso de desempleo refleja su vulnerabilidad económica. La baja formación educativa y la concentración en las regiones Pacífica y Caribe indican que estas son zonas de interés donde conviene implementar políticas que impulsen el desarrollo de la población y con esto garantizar más posibilidades de acceso a mejores prestaciones.
